@@ -10,7 +10,7 @@ setuptools.setup(
     description="Omega Point API Python Library",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/RossFabricant/omega-point",
+    url="https://github.com/RossFabricant/omegapoint",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
