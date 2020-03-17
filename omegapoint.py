@@ -85,6 +85,16 @@ def delete_portfolio_positions(name):
     oper.delete_position_set_dates(portfolio_id = get_portfolio_id(name), all_dates=True)
     return oper()
     
+def update_portfolio(port_id, alias = None, name = None, default_model_id = None, rollover_position_set_to_current_date = None):
+    oper = OpOperation(schema.Mutation)
+    pu = schema.PortfolioUpdate()
+    if alias is not None: pu.__setattr__('alias', alias)
+    if name is not None: pu.__setattr__('name', name)
+    if default_model_id is not None: pu.__setattr__('default_model_id', default_model_id)
+    if rollover_position_set_to_current_date is not None: pu.__setattr__('rollover_position_set_to_current_date',rollover_position_set_to_current_date)
+    oper.update_portfolio(id = port_id, portfolio = pu).__fields__(id = True)
+    return oper().update_portfolio
+    
 def upload_portfolio_positions(name, df):
     port_id = get_portfolio_id(name)
     for date in list(df.date.unique()):
@@ -149,11 +159,11 @@ def get_portfolio_performance(name, start_date, end_date,
 
 """Given a list of sedols and a date range, get total,factor,specific, and sector returns in a dataframe.
 """
-def get_stock_returns(sedols, start_date, end_date, model_id = op.DEFAULT_MODEL_ID):
+def get_stock_returns(sedols, start_date, end_date, model_id = DEFAULT_MODEL_ID):
     returns = []
 
     for sedol in sedols:
-        oper = op.OpOperation(schema.Query)   
+        oper = OpOperation(schema.Query)   
         security = oper.model(id=model_id).security(sedol=sedol)
         perf = security.performance(from_ = start_date, to = end_date)
         perf.__fields__()
