@@ -9,8 +9,10 @@ from sgqlc.types.relay import Connection, connection_args
 import logging
 logging.basicConfig()
 
-#op.logger.setLevel('DEBUG') to see queries.
-#op.logger.setLevel('INFO') to hide queries.
+#To see queries:
+#op.logger.setLevel('DEBUG')
+#To hide queries:
+#op.logger.setLevel('INFO') 
 logger = HTTPEndpoint.logger
 DEFAULT_MODEL_ID = os.getenv('OMEGA_POINT_DEFAULT_MODEL_ID')
 API_KEY = os.getenv('OMEGA_POINT_API_KEY')
@@ -173,23 +175,54 @@ def get_stock_returns(sedols, start_date, end_date, model_id = DEFAULT_MODEL_ID)
         attr.factors.__fields__('id', 'name', 'category', 'value')
         res = oper()
 
-        sedol_prices = [(sedol, p.date, p.percent_price_change_cumulative.total, p.percent_price_change_cumulative.attribution.summary.factors,
+        sedol_returns = [(sedol, p.date, p.percent_price_change_cumulative.total, p.percent_price_change_cumulative.attribution.summary.factors,
                   p.percent_price_change_cumulative.attribution.summary.specific, 
                 [res.value for res in p.percent_price_change_cumulative.attribution.factors if res.category == 'sector'][0])
                  for p in res.model.security.performance]
-        returns = prices + sedol_prices
-        
         columns = ['sedol',
-'date',
-'total_return',
-'factor_return',
-'specific_return',
-'sector_return']
+            'date',
+            'total_return',
+            'factor_return',
+            'specific_return',
+            'sector_return']
 
-    df_returns = pd.DataFrame(data = [p for p in returns],
+    df_returns = pd.DataFrame(data = sedol_returns,
                               columns = columns)
     return df_returns
 
+"""Omega Point provides cumulative returns. To convert to daily returns requires different formulas for total return and other returns (factor, sector and specific.)
+This is explained here: https://support.ompnt.com/en/articles/3804566-simple-performance-attribution-explanation
+T1 = Cumulative total return, period 1
+T2 = Cumulative total return, period 2
+F1 = Cumulative total return, period 1
+F2 = Cumulative total return, period 2
+t1 = Daily total returns, period 1
+t2 = Daily total returns, period 2
+f1 = Daily factor returns, period 1
+f2 = Daily factor returns, period 2
+t1 = T1
+t2 = (T2/T1) - 1
+f1 = F1
+f2 = (F2-F1)/ (1+T1) = f2
+
+"""
+def get_daily_total_return(df, col_name = 'total_return', days_forward = 0):
+    if days_forward == 0:
+        s = (1+df[col_name]).pct_change(1)
+        s[0] = df.at[0, col_name]
+    else:
+        s = (1+df[col_name]).pct_change(days_forward).shift(-days_forward)
+    return s
+
+"""See note for get_daily_total_return"""
+def get_daily_factor_return(df, total_col = 'total_return', 
+        factor_col = 'factor_return', days_forward = 0):
+    if days_forward == 0:
+        s = ((df.shift(-1)[factor_col] - df[factor_col]) / (1+df[total_col])).shift(1)
+        s[0] = df.at[0, factor_col]
+    else:
+        s = (df.shift(-days_forward)[factor_col] - df[factor_col]) / (1+df[total_col])
+    return s
 
 def test():
     print('6')
