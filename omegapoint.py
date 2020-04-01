@@ -1,3 +1,5 @@
+#TODO: It's easy to send a single input rather than a list, and you 
+#get a confusing error. It would be nice to catch this and show a friendly error.
 import os
 import pandas as pd
 
@@ -9,10 +11,6 @@ from sgqlc.types.relay import Connection, connection_args
 import logging
 logging.basicConfig()
 
-#To see queries:
-#op.logger.setLevel('DEBUG')
-#To hide queries:
-#op.logger.setLevel('INFO') 
 logger = HTTPEndpoint.logger
 DEFAULT_MODEL_ID = os.getenv('OMEGA_POINT_DEFAULT_MODEL_ID')
 API_KEY = os.getenv('OMEGA_POINT_API_KEY')
@@ -28,7 +26,7 @@ class GqlError(Exception):
         return [e['message'] for e in self.errors['errors']]
     
     def __str__(self):
-        return '\n'.join(self.error_list())
+        return '\n'.join(self.error_list()) + '\n' + self.__repr__()
 
 
 class OpOperation(Operation):
@@ -47,6 +45,12 @@ class OpOperation(Operation):
             raise GqlError(str(data), data, self)
         return self+data
 
+def set_verbose(is_verbose): 
+    if is_verbose:
+        logger.setLevel('DEBUG')    
+    else:
+        logger.setLevel('INFO') 
+        
 def create_portfolio(name, default_model_id = DEFAULT_MODEL_ID):
     same_name = [p for p in get_portfolios() if p.name == name]
     if len(same_name) > 0: 
@@ -54,6 +58,7 @@ def create_portfolio(name, default_model_id = DEFAULT_MODEL_ID):
     oper = OpOperation(schema.Mutation)
     port = schema.NewPortfolio(name = name, default_model_id = default_model_id)
     oper.create_portfolio(portfolio=port)
+    oper.create_portfolio.__fields__('id')
     return oper().create_portfolio
 
 def get_portfolios(fields=['name','id']):
@@ -97,7 +102,7 @@ def update_portfolio(port_id, alias = None, name = None, default_model_id = None
     oper.update_portfolio(id = port_id, portfolio = pu).__fields__(id = True)
     return oper().update_portfolio
     
-def upload_portfolio_positions(name, df):
+def upload_portfolio_positions(name, df, nav = None):
     port_id = get_portfolio_id(name)
     for date in list(df.date.unique()):
         oper = OpOperation(schema.Mutation)
@@ -105,7 +110,10 @@ def upload_portfolio_positions(name, df):
                                           economic_exposure = r[1].economic_exposure) 
             for r in df.iterrows()
             if r[1].date == date]
-        position_set = schema.PositionSetDateInput(date = date, equities = equities)
+        if nav is not None:
+            position_set = schema.PositionSetDateInput(date = date, equities = equities, equity = nav)
+        else:
+            position_set = schema.PositionSetDateInput(date = date, equities = equities)
         oper = OpOperation(schema.Mutation)
         oper.upload_position_set_date(portfolio_id=port_id, data=position_set)
         oper()
@@ -221,13 +229,18 @@ def get_daily_factor_return(df, total_col = 'total_return',
         s = ((df.shift(-1)[factor_col] - df[factor_col]) / (1+df[total_col])).shift(1)
         s[0] = df.at[0, factor_col]
     else:
-        s = (df.shift(-days_forward)[factor_col] - df[factor_col]) / (1+df[total_col])
+        s = (df.shift(-days_forward)[factor_col] - df[factor_col]) / (+df[total_col])
     return s
 
-def test():
-    print('6')
-
-#res = create_portfolio(name='TestName7', default_model_id='AXUS4-MH')
-#print(get_portfolios())
-#delete_portfolio('TestName7')
-#print(get_portfolios())
+def get_exposure_contributors(portfolio_name, start_date, end_date, model_id = DEFAULT_MODEL_ID):
+    oper = OpOperation(schema.Query)
+    ec = oper.model(id=model_id).simulation(
+            position_set = schema.PositionSetInput(id = get_portfolio_id(portfolio_name), type = 'PORTFOLIO'), from_= start_date, to = end_date)
+    ec.exposure_contributors.__fields__('date')
+    ec.exposure_contributors.contributors.__fields__('sedol', 'percent_equity')
+    results = oper()
+    values = [[ec_date.date, ec.sedol, ec.percent_equity]
+                  for ec_date in results.model.simulation.exposure_contributors
+                  for ec in ec_date.contributors]
+    return pd.DataFrame(data = values, columns = ['date', 'sedol', 'percent_equity'])
+    
