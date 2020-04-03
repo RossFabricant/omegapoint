@@ -2,12 +2,9 @@
 #get a confusing error. It would be nice to catch this and show a friendly error.
 import os
 import pandas as pd
-
 from sgqlc.operation import Operation
 from omegapoint import schema
 from sgqlc.endpoint.http import HTTPEndpoint
-from sgqlc.types import Type, Field, list_of
-from sgqlc.types.relay import Connection, connection_args
 import logging
 logging.basicConfig()
 
@@ -27,7 +24,6 @@ class GqlError(Exception):
     
     def __str__(self):
         return '\n'.join(self.error_list()) + '\n' + self.__repr__()
-
 
 class OpOperation(Operation):
     def __init__(self, typ=None, name=None, **args):
@@ -103,6 +99,9 @@ def update_portfolio(port_id, alias = None, name = None, default_model_id = None
     return oper().update_portfolio
     
 def upload_portfolio_positions(name, df, nav = None):
+    if name not in [p.name for p in get_portfolios()]:
+        create_portfolio(name)
+   
     port_id = get_portfolio_id(name)
     for date in list(df.date.unique()):
         oper = OpOperation(schema.Mutation)
