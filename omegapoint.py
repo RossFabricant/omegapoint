@@ -160,8 +160,6 @@ for exposure in op.get_portfolio_exposure(port_name, model_id, start_date, end_d
     for f in exposure.factors:
         print(exposure.date, f)
 """
-
-
 def get_portfolio_exposure(port_name, model_id, start_date, end_date):
     oper = OpOperation(schema.Query)
     port = oper.model(id=model_id).portfolio(id=get_portfolio_id(port_name))
@@ -219,8 +217,7 @@ def get_portfolio_performance(
     return df_summary, df_factors
 
 
-"""Given a list of sedols and a date range, get total,factor,specific, and sector returns in a dataframe.
-"""
+"""Given a list of sedols and a date range, get total,factor,specific, and sector returns in a dataframe."""
 
 
 def get_stock_returns(sedols, start_date, end_date, model_id=DEFAULT_MODEL_ID):
@@ -295,9 +292,7 @@ def get_daily_total_return(df, col_name="total_return", days_forward=0):
 """See note for get_daily_total_return"""
 
 
-def get_daily_factor_return(
-    df, total_col="total_return", factor_col="factor_return", days_forward=0
-):
+def get_daily_factor_return(df, total_col="total_return", factor_col="factor_return", days_forward=0):
     if days_forward == 0:
         s = ((df.shift(-1)[factor_col] - df[factor_col]) / (1 + df[total_col])).shift(1)
         s[0] = df.at[0, factor_col]
@@ -306,9 +301,7 @@ def get_daily_factor_return(
     return s
 
 
-def get_exposure_contributors(
-    portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID
-):
+def get_exposure_contributors(portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID):
     oper = OpOperation(schema.Query)
     ec = oper.model(id=model_id).simulation(
         position_set=schema.PositionSetInput(
