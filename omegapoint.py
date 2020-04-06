@@ -125,20 +125,34 @@ def update_portfolio(
 
 
 def upload_portfolio_positions(name, df, nav=None):
+    if 'model_provider_id' in df.columns:
+        id_col = 'model_provider_id' 
+    else:
+        id_col = 'sedol'
     if name not in [p.name for p in get_portfolios()]:
         create_portfolio(name)
 
     port_id = get_portfolio_id(name)
     for date in list(df.date.unique()):
         oper = OpOperation(schema.Mutation)
-        equities = [
+        if id_col == 'model_provider_id':
+                equities = [
             schema.PositionSetEquityInput(
-                id=schema.PositionSetEquityIdInput(sedol=r[1].sedol),
+                id=schema.PositionSetEquityIdInput(model_provider_id=r[1].model_provider_id),
                 economic_exposure=r[1].economic_exposure,
             )
             for r in df.iterrows()
             if r[1].date == date
         ]
+        else:
+            equities = [
+                schema.PositionSetEquityInput(
+                id=schema.PositionSetEquityIdInput(sedol=r[1].sedol),
+                economic_exposure=r[1].economic_exposure,
+                )
+                for r in df.iterrows()
+                if r[1].date == date
+            ]
         if nav is not None:
             position_set = schema.PositionSetDateInput(
                 date=date, equities=equities, equity=nav
@@ -310,12 +324,72 @@ def get_exposure_contributors(portfolio_name, start_date, end_date, model_id=DEF
         from_=start_date,
         to=end_date,
     )
-    ec.exposure_contributors.__fields__("date")
-    ec.exposure_contributors.contributors.__fields__("sedol", "percent_equity")
+    ec.exposure_contributors(equity_id_format='MODEL_PROVIDER_ID').__fields__("date")
+    ec.exposure_contributors.contributors.__fields__("sedol", "id", "percent_equity")
     results = oper()
     values = [
-        [ec_date.date, ec.sedol, ec.percent_equity]
+        [ec_date.date, ec.sedol, ec.id, ec.percent_equity]
         for ec_date in results.model.simulation.exposure_contributors
         for ec in ec_date.contributors
     ]
-    return pd.DataFrame(data=values, columns=["date", "sedol", "percent_equity"])
+    return pd.DataFrame(data=values, columns=["date", "sedol", "model_provider_id", "percent_equity"])
+
+
+'''df of (date,sedol,expected_return)
+df = pd.DataFrame(data = [[date(2019,12,31), '2005973', .05]], columns = ['date', 'sedol', 'expected_return'])
+objective = schema.OptimizationObjective(target_total_risk = 0.07)
+constraints = schema.OptimizationConstraints()
+try:
+    op.delete_portfolio('rwf_test')
+except: pass
+
+load_optimized_portfolio(df,'rwf_test', 100e6, 21, objective)
+'''
+def load_optimized_portfolio(df, portfolio_name, nav, forecast_horizon, objective, 
+                             model_id = DEFAULT_MODEL_ID):
+    if portfolio_name not in [p.name for p in op.get_portfolios()]:
+        op.create_portfolio(portfolio_name)
+
+    errors = []
+    for dt in df.date.unique():
+        rows = list(row for index, row in df[df.date == dt].iterrows())
+        oper = op.OpOperation(schema.Query)   
+        long_len = len([r for r in rows if r.expected_return > 0])
+        if long_len > 0: long_base = nav / long_len
+        short_len = len([r for r in rows if r.expected_return <= 0])
+        if short_len > 0: short_base = -nav / short_len
+        equities = [schema.PositionSetEquityInput(
+        id = schema.PositionSetEquityIdInput(sedol = row.sedol),
+        economic_exposure = long_base if row.expected_return > 0 else short_base)
+            for row in rows]
+
+        position_set_dates = [schema.PositionSetDateInput(equities=equities, date = dt)] 
+        position_set = schema.PositionSetInput(dates = position_set_dates)
+
+        forecast_equities = [schema.ForecastEquityInput
+                                 (id = schema.PositionSetEquityIdInput(sedol = row.sedol), 
+                                  expected_percent_return = row.expected_return)
+                                 for row in rows]
+        forecast = schema.ForecastInput(horizon = forecast_horizon, equities = forecast_equities)
+
+        constants = schema.OptimizationConstantsInput(equity = nav)
+        optimization = oper.model(id=model_id).optimization(
+                position_set = position_set, objective = [objective], constants = constants,
+                constraints = constraints, forecast = forecast
+        )
+        opt_dates = optimization.positions().dates
+        opt_dates.date()
+        opt_dates.equities().id().sedol()
+        opt_dates.equities().__fields__('id', 'economic_exposure')
+        results = None
+        try:
+            results = oper()
+        except op.GqlError as gql_err:
+            errors.append((dt, gql_err))
+        values = [[pos_date.date, equity.id.sedol, equity.economic_exposure]
+                  for pos_date in results.model.optimization.positions.dates
+                  for equity in pos_date.equities]
+        columns = ['date', 'sedol', 'economic_exposure']
+        df_pos = pd.DataFrame(data = values, columns = columns)
+        upload_portfolio_positions(portfolio_name, df_pos, nav=nav)
+    return errors
