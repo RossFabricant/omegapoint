@@ -126,33 +126,22 @@ def update_portfolio(
 
 def upload_portfolio_positions(name, df, nav=None):
     if 'model_provider_id' in df.columns:
-        id_col = 'model_provider_id' 
+        id_type = 'model_provider_id' 
     else:
-        id_col = 'sedol'
+        id_type = 'sedol'
     if name not in [p.name for p in get_portfolios()]:
         create_portfolio(name)
 
     port_id = get_portfolio_id(name)
     for date in list(df.date.unique()):
         oper = OpOperation(schema.Mutation)
-        if id_col == 'model_provider_id':
-                equities = [
-            schema.PositionSetEquityInput(
-                id=schema.PositionSetEquityIdInput(model_provider_id=r[1].model_provider_id),
-                economic_exposure=r[1].economic_exposure,
-            )
+        equities = [schema.PositionSetEquityInput(
+                    id=schema.PositionSetEquityIdInput(**{id_type : r[1][id_type]}),
+                    economic_exposure=r[1].economic_exposure
+                   )
             for r in df.iterrows()
             if r[1].date == date
         ]
-        else:
-            equities = [
-                schema.PositionSetEquityInput(
-                id=schema.PositionSetEquityIdInput(sedol=r[1].sedol),
-                economic_exposure=r[1].economic_exposure,
-                )
-                for r in df.iterrows()
-                if r[1].date == date
-            ]
         if nav is not None:
             position_set = schema.PositionSetDateInput(
                 date=date, equities=equities, equity=nav
@@ -162,7 +151,6 @@ def upload_portfolio_positions(name, df, nav=None):
         oper = OpOperation(schema.Mutation)
         oper.upload_position_set_date(portfolio_id=port_id, data=position_set)
         oper()
-
 
 """
 port_name = 'Test Name'
@@ -231,15 +219,15 @@ def get_portfolio_performance(
     return df_summary, df_factors
 
 
-"""Given a list of sedols and a date range, get total,factor,specific, and sector returns in a dataframe."""
+"""Given a list of sedol or model provider IDs and a date range, get total,factor,specific, and sector returns in a dataframe."""
 
 
-def get_stock_returns(sedols, start_date, end_date, model_id=DEFAULT_MODEL_ID):
+def get_stock_returns(id_type, ids, start_date, end_date, model_id=DEFAULT_MODEL_ID):
     returns = []
 
-    for sedol in sedols:
+    for id in ids:
         oper = OpOperation(schema.Query)
-        security = oper.model(id=model_id).security(sedol=sedol)
+        security = oper.model(id=model_id).security(**{id_type : id})
         perf = security.performance(from_=start_date, to=end_date)
         perf.__fields__()
         perf.percent_price_change_cumulative.__fields__()
@@ -335,7 +323,8 @@ def get_exposure_contributors(portfolio_name, start_date, end_date, model_id=DEF
     return pd.DataFrame(data=values, columns=["date", "sedol", "model_provider_id", "percent_equity"])
 
 
-'''df of (date,sedol,expected_return)
+'''
+df of (date,sedol,expected_return)
 df = pd.DataFrame(data = [[date(2019,12,31), '2005973', .05]], columns = ['date', 'sedol', 'expected_return'])
 objective = schema.OptimizationObjective(target_total_risk = 0.07)
 constraints = schema.OptimizationConstraints()
