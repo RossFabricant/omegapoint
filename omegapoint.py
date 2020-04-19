@@ -210,6 +210,13 @@ def get_portfolio_performance(
         ],
         columns=["date"] + summary_fields,
     )
+    #We're given cumulative values but may want daily values.
+    df_summary['trading_daily'] = (1+df_summary.trading).pct_change()
+    df_summary.trading_daily.iat[0] = df_summary.trading[0]
+    df_summary['factors_daily'] = (1+df_summary.factors).pct_change()
+    df_summary.factors_daily.iat[0] = df_summary.factors[0]
+    df_summary['specific_daily'] = (1+df_summary.specific).pct_change()
+    df_summary.specific_daily.iat[0] = df_summary.sepecific[0]
 
     factor_data = []
     for p in res.model.simulation.performance:
@@ -236,9 +243,9 @@ def get_stock_returns(id_type, ids, start_date, end_date, model_id=DEFAULT_MODEL
         attr.factors.__fields__("id", "name", "category", "value")
         res = oper()
 
-        sedol_returns = [
+        id_returns = [
             (
-                sedol,
+                id,
                 p.date,
                 p.percent_price_change_cumulative.total,
                 p.percent_price_change_cumulative.attribution.summary.factors,
@@ -252,7 +259,7 @@ def get_stock_returns(id_type, ids, start_date, end_date, model_id=DEFAULT_MODEL
             for p in res.model.security.performance
         ]
         columns = [
-            "sedol",
+            id_type,
             "date",
             "total_return",
             "factor_return",
@@ -260,7 +267,7 @@ def get_stock_returns(id_type, ids, start_date, end_date, model_id=DEFAULT_MODEL
             "sector_return",
         ]
 
-    df_returns = pd.DataFrame(data=sedol_returns, columns=columns)
+    df_returns = pd.DataFrame(data=id_returns, columns=columns)
     return df_returns
 
 
@@ -334,6 +341,7 @@ except: pass
 
 load_optimized_portfolio(df,'rwf_test', 100e6, 21, objective)
 '''
+#TODO support model_provider_id
 def load_optimized_portfolio(df, portfolio_name, nav, forecast_horizon, objective, 
                              model_id = DEFAULT_MODEL_ID):
     if portfolio_name not in [p.name for p in op.get_portfolios()]:
