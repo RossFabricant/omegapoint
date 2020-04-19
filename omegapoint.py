@@ -216,7 +216,7 @@ def get_portfolio_performance(
     df_summary['factors_daily'] = (1+df_summary.factors).pct_change()
     df_summary.factors_daily.iat[0] = df_summary.factors[0]
     df_summary['specific_daily'] = (1+df_summary.specific).pct_change()
-    df_summary.specific_daily.iat[0] = df_summary.sepecific[0]
+    df_summary.specific_daily.iat[0] = df_summary.specific[0]
 
     factor_data = []
     for p in res.model.simulation.performance:
