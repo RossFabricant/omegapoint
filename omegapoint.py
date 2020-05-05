@@ -8,6 +8,7 @@ from sgqlc.endpoint.http import HTTPEndpoint
 import logging
 from datetime import timedelta
 from collections import defaultdict
+from omegapoint.utils import split_dates
 
 logging.basicConfig()
 
@@ -500,12 +501,13 @@ def get_composition(portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL
 
 
 def get_market_impact_date(
-    mi_date, deltas, gmv, denominator=1, model_id=DEFAULT_MODEL_ID
+    mi_date, deltas, nav, denominator=None, model_id=DEFAULT_MODEL_ID
 ):
+    if denominator == None: denominator = nav
     equities = [
         schema.PositionSetEquityInput(
             id=schema.PositionSetEquityIdInput(model_provider_id=id),
-            economic_exposure=pct_equity * gmv,
+            economic_exposure=pct_equity * nav,
         )
         for id, pct_equity in deltas.items()
     ]
@@ -563,6 +565,7 @@ def get_position_deltas(curr_pos, prev_pos):
     return deltas
 
 
+@split_dates
 def get_market_impact(
     portfolio_name,
     start_date,
@@ -578,7 +581,7 @@ def get_market_impact(
     prev_date = start_date + timedelta(days=-4)
     df_pos = get_exposure_contributors(portfolio_name, prev_date, end_date)
     df_composition = get_composition(portfolio_name, start_date, end_date)
-    gmv = df_composition.set_index("date").to_dict()["gmv"]
+    nav = df_composition.set_index("date").to_dict()["reference_equity"]
     denominators = df_composition.set_index("date").to_dict()[denominator]
 
     prev_pos = None
@@ -590,7 +593,7 @@ def get_market_impact(
             continue
         deltas = get_position_deltas(curr_pos, prev_pos)
         total_date, contrib_date = get_market_impact_date(
-            dt, deltas, gmv[dt], denominators[dt]
+            dt, deltas, nav[dt], denominators[dt]
         )
         if df_total is None:
             df_total, df_contrib = total_date, contrib_date
@@ -601,3 +604,10 @@ def get_market_impact(
             )
         prev_pos = curr_pos
     return df_total, df_contrib
+
+def get_total_risk(id, id_type, start_date, end_date, model_id = DEFAULT_MODEL_ID):
+    oper = OpOperation(schema.Query)
+    oper.model(id = model_id).security(**{id_type : id}). \
+        risk(from_ = start_date, to = end_date).__fields__('date', 'total')
+    res = oper()
+    return pd.DataFrame(data = [(r.date, r.total) for r in res.model.security.risk], columns = ['date', 'total'])
