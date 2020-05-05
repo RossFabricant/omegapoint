@@ -13,7 +13,8 @@ API_KEY = os.getenv('OMEGA_POINT_API_KEY')
 URL = os.getenv('OMEGA_POINT_URL')
 
 
-Here 
+Here are some examples of code using the library.
+
 #This works
 print(get_models())    
 #This fails
