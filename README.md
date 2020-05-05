@@ -7,7 +7,9 @@ This library offers a convenient way to access the Omega Point API from Python. 
 There are 3 default values you can set with enviroment variables:
  
 DEFAULT_MODEL_ID = os.getenv('OMEGA_POINT_DEFAULT_MODEL_ID')
+
 API_KEY = os.getenv('OMEGA_POINT_API_KEY')
+
 URL = os.getenv('OMEGA_POINT_URL')
 
 
