@@ -611,3 +611,28 @@ def get_total_risk(id, id_type, start_date, end_date, model_id = DEFAULT_MODEL_I
         risk(from_ = start_date, to = end_date).__fields__('date', 'total')
     res = oper()
     return pd.DataFrame(data = [(r.date, r.total) for r in res.model.security.risk], columns = ['date', 'total'])
+
+def create_watchlist(name): 
+    oper = OpOperation(schema.Mutation)
+    oper.create_watchlist(name = 'name')
+    res = oper()
+    return res
+
+def get_watchlist_id(name): 
+    oper = OpOperation(schema.Query)
+    oper.watchlists().__fields__('name', 'id')
+    res = oper()
+    return [w.id for w in res.watchlists if w.name == name][0]
+
+def add_watchlist_securities(name, id_type, ids): 
+    oper = OpOperation(schema.Mutation)
+    equities = [schema.PositionSetEquityIdInput(**{id_type: id}) for id in ids]
+    securities = schema.WatchlistSecuritiesInput(equities = equities)
+    oper.add_watchlist_securities(watchlist_id = op.get_watchlist_id(name), securities = securities)
+    oper()
+ 
+def clear_watchlist_securities(name): 
+    oper = OpOperation(schema.Mutation)
+    oper.clear_watchlist_securities(watchlist_id = get_watchlist_id(name))
+    return oper()
+ 
