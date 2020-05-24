@@ -628,7 +628,7 @@ def add_watchlist_securities(name, id_type, ids):
     oper = OpOperation(schema.Mutation)
     equities = [schema.PositionSetEquityIdInput(**{id_type: id}) for id in ids]
     securities = schema.WatchlistSecuritiesInput(equities = equities)
-    oper.add_watchlist_securities(watchlist_id = op.get_watchlist_id(name), securities = securities)
+    oper.add_watchlist_securities(watchlist_id = get_watchlist_id(name), securities = securities)
     oper()
  
 def clear_watchlist_securities(name): 
