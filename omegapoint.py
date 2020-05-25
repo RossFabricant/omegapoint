@@ -614,7 +614,7 @@ def get_total_risk(id, id_type, start_date, end_date, model_id = DEFAULT_MODEL_I
 
 def create_watchlist(name): 
     oper = OpOperation(schema.Mutation)
-    oper.create_watchlist(name = 'name')
+    oper.create_watchlist(name = name)
     res = oper()
     return res
 
