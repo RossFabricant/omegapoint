@@ -163,15 +163,15 @@ model_id = 'AXUS4-MH'
 start_date = '2018-12-31'
 end_date = '2020-01-09'
 
-for exposure in op.get_portfolio_exposure(port_name, model_id, start_date, end_date):
+for exposure in op.get_portfolio_exposure(port_name, start_date, end_date, model_id):
     for f in exposure.factors:
         print(exposure.date, f)
 """
 
 
-def get_portfolio_exposure(port_name, model_id, start_date, end_date):
+def get_portfolio_exposure(name, start_date, end_date, model_id = DEFAULT_MODEL_ID):
     oper = OpOperation(schema.Query)
-    port = oper.model(id=model_id).portfolio(id=get_portfolio_id(port_name))
+    port = oper.model(id=model_id).portfolio(id=get_portfolio_id(name))
     exposure = port.exposure(from_=start_date, to=end_date)
     exposure.__fields__()
     exposure.factors().__fields__()
@@ -604,6 +604,24 @@ def get_market_impact(
             )
         prev_pos = curr_pos
     return df_total, df_contrib
+
+def get_portfolio_risk_summary(portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID):
+    oper = OpOperation(schema.Query)
+    risk = oper.model(id = model_id).portfolio(id = get_portfolio_id(portfolio_name)).risk(from_ = start_date, to = end_date)
+    risk.__fields__('date', 'total')
+    risk.attribution.summary().__fields__('factors', 'specific')
+    res = oper()
+    return pd.DataFrame(data = [(r.date, r.total, r.attribution.summary.factors, r.attribution.summary.specific) for r in res.model.portfolio.risk],
+            columns = ['date', 'total', 'factors', 'specific'])
+
+def get_portfolio_factor_risk(portfolio_name, start_date, end_date, factors, model_id=DEFAULT_MODEL_ID):
+    oper = OpOperation(schema.Query)
+    risk = oper.model(id = model_id).portfolio(id = get_portfolio_id(portfolio_name)).risk(from_ = start_date, to = end_date)
+    risk.__fields__('date', 'total')
+    risk.attribution.factors(id = factors).__fields__('id', 'name', 'category', 'value')
+    res = oper()
+    return pd.DataFrame(data = [(r.date, rf.id, rf.name, rf.category, rf.value) for r in res.model.portfolio.risk for rf in r.attribution.factors],
+            columns = ['date', 'id', 'name', 'category', 'value'])    
 
 def get_total_risk(id, id_type, start_date, end_date, model_id = DEFAULT_MODEL_ID):
     oper = OpOperation(schema.Query)
