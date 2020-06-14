@@ -1,9 +1,12 @@
 # omegapoint
 This library offers a convenient way to access the Omega Point API from Python. It has 3 components: 
-    schema.py. This has Python classes that give full access to the Omega Point GQL API. It is automatically generated from sgqlc. 
+
+    schema.py. This has Python classes that give full access to the Omega Point GQL API. 
+    It is automatically generated from sgqlc. 
     
-    omegapoint.py. This has convenience functions that let you perform common operations more fluently than you could by using schema.py directly.
-        It also defines the class GqlError, which lets you capture Omega Point error messages on failed operations. 
+    omegapoint.py. This has convenience functions that let you perform common operations more
+    fluently than you could by using schema.py directly.
+    It also defines the class GqlError, which lets you capture Omega Point error messages on failed operations. 
     
     utils.py. This has convenince functions for working with dates and splitting up large API requests.  
 
@@ -17,7 +20,7 @@ URL = os.getenv('OMEGA_POINT_URL')
 
 
 Here is a quick sample of the code. There are more examples in the examples/ directory.  
-
+```
 from omegapoint import schema, utils, omegapoint as op
 import pandas as pd
 from datetime import date 
@@ -32,6 +35,7 @@ except op.GqlError as e:
     print(f"GQL error. Query Id is {e.errors['extensions']['queryId']}")
     print(f"Operation is:\n{e.operation}")
     print(f"Error is:\n{e.errors}")
+
 '''
 ERROR:sgqlc.endpoint.http:GraphQL query failed with 1 errors
 ERROR:sgqlc.endpoint.http:Failed query:
@@ -52,6 +56,7 @@ Error is:
 {'errors': [{'message': 'Access to model fake forbidden', 'locations': [{'line': 2, 'column': 1}], 'path': ['createPortfolio']}], 'data': {'createPortfolio': None}, 'extensions': {'queryId': 'c5fb462d-653f-4632-a0cf-12557a17573b'}}
 Portfolio(id=68d1d99a-e0ba-4c3f-9bf5-6a29c155042d)
 '''
+
 res = op.create_portfolio(name='OpTest1', default_model_id=model_id)
 print(res)
 #Portfolio(id=68d1d99a-e0ba-4c3f-9bf5-6a29c155042d)
@@ -92,3 +97,4 @@ for dt in utils.weekdays(start = date(2019,11,4), stop = date(2019,11,7)):
 '''
     
 op.delete_portfolio('OpTest1')
+```
