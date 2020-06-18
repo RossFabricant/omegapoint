@@ -40,3 +40,12 @@ def split_dates(func):
         if len(results) == 0: return results
         return  (pd.concat([row[i] for row in results]) for i in range(len(results[0])))
     return function_wrapper
+
+#Step through a list in sections
+def stepwise(lst, step):
+    if step > len(lst): yield lst
+    i = 0
+    for i in range((len(lst) // step)):
+        yield(lst[i * step : (i + 1) * step])
+    l = (lst[(i+1) * step :])
+    if len(l) > 0: yield l

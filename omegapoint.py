@@ -2,8 +2,9 @@
 # get a confusing error. It would be nice to catch this and show a friendly error.
 import os
 import pandas as pd
+import numpy as np
 from sgqlc.operation import Operation
-from omegapoint import schema
+from omegapoint import schema, utils
 from sgqlc.endpoint.http import HTTPEndpoint
 import logging
 from datetime import timedelta
@@ -276,17 +277,44 @@ def get_stock_returns(id_type, ids, start_date, end_date, model_id=DEFAULT_MODEL
             "specific_return",
             "sector_return",
         ]
+        returns.append(pd.DataFrame(data=id_returns, columns=columns))
+    return pd.concat(returns)
 
-    df_returns = pd.DataFrame(data=id_returns, columns=columns)
-    return df_returns
+#factor_cols is a list of factor ids, this returns return attribution for those factors. 
+def get_stock_factor_returns(id_type, ids, start_date, end_date, factor_cols, model_id=DEFAULT_MODEL_ID):
+    returns = []
+
+    for id in ids:
+        oper = OpOperation(schema.Query)
+        security = oper.model(id=model_id).security(**{id_type: id})
+        perf = security.performance(from_=start_date, to=end_date)
+        perf.__fields__()
+        perf.percent_price_change_cumulative.__fields__()
+        attr = perf.percent_price_change_cumulative.attribution
+        attr.factors(id = factor_cols).__fields__("id", "name", "category", "value")
+        res = oper()
+
+        id_returns = [
+            (
+                id,
+                p.date,
+                f.id,
+                f.value)
+            for p in res.model.security.performance
+            for f in p.percent_price_change_cumulative.attribution.factors    
+        ]
+        columns = [id_type, "date", "id", "value"]
+        returns.append(pd.DataFrame(data=id_returns, columns=columns))
+    df = pd.concat(returns)
+    return pd.pivot_table(df, values='value', index=['date', 'sedol'], columns=['id']).reset_index()
 
 
 """Omega Point provides cumulative returns. To convert to daily returns requires different formulas for total return and other returns (factor, sector and specific.)
 This is explained here: https://support.ompnt.com/en/articles/3804566-simple-performance-attribution-explanation
 T1 = Cumulative total return, period 1
 T2 = Cumulative total return, period 2
-F1 = Cumulative total return, period 1
-F2 = Cumulative total return, period 2
+F1 = Cumulative factor return, period 1
+F2 = Cumulative factor return, period 2
 t1 = Daily total returns, period 1
 t2 = Daily total returns, period 2
 f1 = Daily factor returns, period 1
@@ -294,33 +322,31 @@ f2 = Daily factor returns, period 2
 t1 = T1
 t2 = (T2/T1) - 1
 f1 = F1
-f2 = (F2-F1)/ (1+T1) = f2
+f2 = (F2-F1)/ (1+T1)
 
 """
-
-
-def get_daily_total_return(df, col_name="total_return", days_forward=0):
+def get_daily_total_return(df, col_name="total_return", days_forward=0, id_col = "sedol"):
+    df[col_name] = df[col_name] + 1
     if days_forward == 0:
-        s = (1 + df[col_name]).pct_change(1)
-        s[0] = df.at[0, col_name]
+        s = df.groupby(id_col)[col_name].pct_change(1)
     else:
-        s = (1 + df[col_name]).pct_change(days_forward).shift(-days_forward)
+        s = df.groupby(id_col)[col_name].pct_change(days_forward).shift(-days_forward) \
+        * np.sign(days_forward)
+    df[col_name] = df[col_name] - 1
     return s
-
 
 """See note for get_daily_total_return"""
 
-
-def get_daily_factor_return(
-    df, total_col="total_return", factor_col="factor_return", days_forward=0
-):
+def get_daily_factor_return(df, total_col="total_return", factor_col="factor_return", 
+        days_forward=0, id_col = "sedol"):
     if days_forward == 0:
-        s = ((df.shift(-1)[factor_col] - df[factor_col]) / (1 + df[total_col])).shift(1)
+        s = ((df.groupby(id_col).shift(-1)[factor_col] - df[factor_col]) / (1 + df[total_col])).shift(1)
         s[0] = df.at[0, factor_col]
     else:
-        s = (df.shift(-days_forward)[factor_col] - df[factor_col]) / (+df[total_col])
-    return s
-
+        df[total_col] = df[total_col] + 1
+        s = (df.groupby(id_col).shift(-days_forward)[factor_col] - df[factor_col]) / (df[total_col]) * np.sign(days_forward)
+        df[total_col] = df[total_col] - 1
+    return s.replace([np.inf, -np.inf], np.nan)
 
 def get_exposure_contributors(
     portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID
@@ -485,6 +511,47 @@ def get_descriptors(dates, id_type, ids, descriptors, model_id=DEFAULT_MODEL_ID)
             )
     return pd.DataFrame(data=ret, columns=[id_type, "date"] + descriptors)
 
+def get_security_search(start_date, end_date, sedols, security_columns, factors, model_id=DEFAULT_MODEL_ID):
+    if 'sedol' not in security_columns: security_columns.append('sedol')
+    dfs = []
+    dates = utils.weekdays(start_date, end_date)
+    for dt in dates:
+        print(dt)
+        count_left = -1
+        total_count_taken = 0 
+        while count_left != 0:
+            oper = OpOperation(schema.Query)
+            filter = schema.SecuritySearchFilter()
+            securities = schema.SecuritySearchFilterSecurities(
+                in_ = [schema.UniversalIdInput(sedol = s) for s in sedols])
+            filter.__setattr__('securities', securities)
+            security_search = oper.model(id=model_id).security_search(
+                on=dt, filter = [filter], take = 200, skip = total_count_taken)
+            security_search.count()
+            security_search.securities().__fields__(*security_columns)
+            if factors is not None and len(factors) > 0:
+                security_search.securities.factor_exposure(id=factors).__fields__('id', 'z_score')
+            results = oper()
+            if results.model.security_search.securities is None:
+                current_count_taken = 0 
+            else: 
+                current_count_taken = len(results.model.security_search.securities)
+            total_count_taken += current_count_taken
+            count_left = total_count_taken - results.model.security_search.count
+            if current_count_taken == 0:
+                count_left = 0
+                break
+            if factors is not None and len(factors) > 0:
+                data = [[dt]+[getattr(res, s) for s in security_columns] + [fe.z_score for fe in res.factor_exposure]
+                    for res in results.model.security_search.securities]
+                data_columns = ['date'] + security_columns + \
+                [fe.id for fe in results.model.security_search.securities[0].factor_exposure]
+            else:
+                data = [[dt]+[getattr(res, s) for s in security_columns] 
+                    for res in results.model.security_search.securities]
+                data_columns = ['date'] + security_columns
+            dfs.append(pd.DataFrame(data = data, columns = data_columns))
+    return pd.concat(dfs)
 
 def get_composition(portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID):
     oper = OpOperation(schema.Query)
