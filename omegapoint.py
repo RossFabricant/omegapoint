@@ -170,7 +170,7 @@ for exposure in op.get_portfolio_exposure(port_name, start_date, end_date, model
 """
 
 
-def get_portfolio_exposure(name, start_date, end_date, model_id = DEFAULT_MODEL_ID):
+def get_portfolio_exposure(name, start_date, end_date, model_id=DEFAULT_MODEL_ID):
     oper = OpOperation(schema.Query)
     port = oper.model(id=model_id).portfolio(id=get_portfolio_id(name))
     exposure = port.exposure(from_=start_date, to=end_date)
@@ -280,8 +280,11 @@ def get_stock_returns(id_type, ids, start_date, end_date, model_id=DEFAULT_MODEL
         returns.append(pd.DataFrame(data=id_returns, columns=columns))
     return pd.concat(returns)
 
-#factor_cols is a list of factor ids, this returns return attribution for those factors. 
-def get_stock_factor_returns(id_type, ids, start_date, end_date, factor_cols, model_id=DEFAULT_MODEL_ID):
+
+# factor_cols is a list of factor ids, this returns return attribution for those factors.
+def get_stock_factor_returns(
+    id_type, ids, start_date, end_date, factor_cols, model_id=DEFAULT_MODEL_ID
+):
     returns = []
 
     for id in ids:
@@ -291,22 +294,20 @@ def get_stock_factor_returns(id_type, ids, start_date, end_date, factor_cols, mo
         perf.__fields__()
         perf.percent_price_change_cumulative.__fields__()
         attr = perf.percent_price_change_cumulative.attribution
-        attr.factors(id = factor_cols).__fields__("id", "name", "category", "value")
+        attr.factors(id=factor_cols).__fields__("id", "name", "category", "value")
         res = oper()
 
         id_returns = [
-            (
-                id,
-                p.date,
-                f.id,
-                f.value)
+            (id, p.date, f.id, f.value)
             for p in res.model.security.performance
-            for f in p.percent_price_change_cumulative.attribution.factors    
+            for f in p.percent_price_change_cumulative.attribution.factors
         ]
         columns = [id_type, "date", "id", "value"]
         returns.append(pd.DataFrame(data=id_returns, columns=columns))
     df = pd.concat(returns)
-    return pd.pivot_table(df, values='value', index=['date', 'sedol'], columns=['id']).reset_index()
+    return pd.pivot_table(
+        df, values="value", index=["date", "sedol"], columns=["id"]
+    ).reset_index()
 
 
 """Omega Point provides cumulative returns. To convert to daily returns requires different formulas for total return and other returns (factor, sector and specific.)
@@ -325,28 +326,46 @@ f1 = F1
 f2 = (F2-F1)/ (1+T1)
 
 """
-def get_daily_total_return(df, col_name="total_return", days_forward=0, id_col = "sedol"):
+
+
+def get_daily_total_return(df, col_name="total_return", days_forward=0, id_col="sedol"):
     df[col_name] = df[col_name] + 1
     if days_forward == 0:
         s = df.groupby(id_col)[col_name].pct_change(1)
     else:
-        s = df.groupby(id_col)[col_name].pct_change(days_forward).shift(-days_forward) \
-        * np.sign(days_forward)
+        s = df.groupby(id_col)[col_name].pct_change(days_forward).shift(
+            -days_forward
+        ) * np.sign(days_forward)
     df[col_name] = df[col_name] - 1
     return s
 
+
 """See note for get_daily_total_return"""
 
-def get_daily_factor_return(df, total_col="total_return", factor_col="factor_return", 
-        days_forward=0, id_col = "sedol"):
+
+def get_daily_factor_return(
+    df,
+    total_col="total_return",
+    factor_col="factor_return",
+    days_forward=0,
+    id_col="sedol",
+):
     if days_forward == 0:
-        s = ((df.groupby(id_col).shift(-1)[factor_col] - df[factor_col]) / (1 + df[total_col])).shift(1)
+        s = (
+            (df.groupby(id_col).shift(-1)[factor_col] - df[factor_col])
+            / (1 + df[total_col])
+        ).shift(1)
         s[0] = df.at[0, factor_col]
     else:
         df[total_col] = df[total_col] + 1
-        s = (df.groupby(id_col).shift(-days_forward)[factor_col] - df[factor_col]) / (df[total_col]) * np.sign(days_forward)
+        s = (
+            (df.groupby(id_col).shift(-days_forward)[factor_col] - df[factor_col])
+            / (df[total_col])
+            * np.sign(days_forward)
+        )
         df[total_col] = df[total_col] - 1
     return s.replace([np.inf, -np.inf], np.nan)
+
 
 def get_exposure_contributors(
     portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID
@@ -511,30 +530,38 @@ def get_descriptors(dates, id_type, ids, descriptors, model_id=DEFAULT_MODEL_ID)
             )
     return pd.DataFrame(data=ret, columns=[id_type, "date"] + descriptors)
 
-def get_security_search(start_date, end_date, sedols, security_columns, factors, model_id=DEFAULT_MODEL_ID):
-    if 'sedol' not in security_columns: security_columns.append('sedol')
+
+def get_security_search(
+    start_date, end_date, sedols, security_columns, factors, model_id=DEFAULT_MODEL_ID
+):
+    if "sedol" not in security_columns:
+        security_columns.append("sedol")
     dfs = []
     dates = utils.weekdays(start_date, end_date)
     for dt in dates:
         print(dt)
         count_left = -1
-        total_count_taken = 0 
+        total_count_taken = 0
         while count_left != 0:
             oper = OpOperation(schema.Query)
             filter = schema.SecuritySearchFilter()
             securities = schema.SecuritySearchFilterSecurities(
-                in_ = [schema.UniversalIdInput(sedol = s) for s in sedols])
-            filter.__setattr__('securities', securities)
+                in_=[schema.UniversalIdInput(sedol=s) for s in sedols]
+            )
+            filter.__setattr__("securities", securities)
             security_search = oper.model(id=model_id).security_search(
-                on=dt, filter = [filter], take = 200, skip = total_count_taken)
+                on=dt, filter=[filter], take=200, skip=total_count_taken
+            )
             security_search.count()
             security_search.securities().__fields__(*security_columns)
             if factors is not None and len(factors) > 0:
-                security_search.securities.factor_exposure(id=factors).__fields__('id', 'z_score')
+                security_search.securities.factor_exposure(id=factors).__fields__(
+                    "id", "z_score"
+                )
             results = oper()
             if results.model.security_search.securities is None:
-                current_count_taken = 0 
-            else: 
+                current_count_taken = 0
+            else:
                 current_count_taken = len(results.model.security_search.securities)
             total_count_taken += current_count_taken
             count_left = total_count_taken - results.model.security_search.count
@@ -542,16 +569,31 @@ def get_security_search(start_date, end_date, sedols, security_columns, factors,
                 count_left = 0
                 break
             if factors is not None and len(factors) > 0:
-                data = [[dt]+[getattr(res, s) for s in security_columns] + [fe.z_score for fe in res.factor_exposure]
-                    for res in results.model.security_search.securities]
-                data_columns = ['date'] + security_columns + \
-                [fe.id for fe in results.model.security_search.securities[0].factor_exposure]
+                data = [
+                    [dt]
+                    + [getattr(res, s) for s in security_columns]
+                    + [fe.z_score for fe in res.factor_exposure]
+                    for res in results.model.security_search.securities
+                ]
+                data_columns = (
+                    ["date"]
+                    + security_columns
+                    + [
+                        fe.id
+                        for fe in results.model.security_search.securities[
+                            0
+                        ].factor_exposure
+                    ]
+                )
             else:
-                data = [[dt]+[getattr(res, s) for s in security_columns] 
-                    for res in results.model.security_search.securities]
-                data_columns = ['date'] + security_columns
-            dfs.append(pd.DataFrame(data = data, columns = data_columns))
+                data = [
+                    [dt] + [getattr(res, s) for s in security_columns]
+                    for res in results.model.security_search.securities
+                ]
+                data_columns = ["date"] + security_columns
+            dfs.append(pd.DataFrame(data=data, columns=data_columns))
     return pd.concat(dfs)
+
 
 def get_composition(portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID):
     oper = OpOperation(schema.Query)
@@ -570,7 +612,8 @@ def get_composition(portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL
 def get_market_impact_date(
     mi_date, deltas, nav, denominator=None, model_id=DEFAULT_MODEL_ID
 ):
-    if denominator == None: denominator = nav
+    if denominator == None:
+        denominator = nav
     equities = [
         schema.PositionSetEquityInput(
             id=schema.PositionSetEquityIdInput(model_provider_id=id),
@@ -672,52 +715,92 @@ def get_market_impact(
         prev_pos = curr_pos
     return df_total, df_contrib
 
-def get_portfolio_risk_summary(portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID):
-    oper = OpOperation(schema.Query)
-    risk = oper.model(id = model_id).portfolio(id = get_portfolio_id(portfolio_name)).risk(from_ = start_date, to = end_date)
-    risk.__fields__('date', 'total')
-    risk.attribution.summary().__fields__('factors', 'specific')
-    res = oper()
-    return pd.DataFrame(data = [(r.date, r.total, r.attribution.summary.factors, r.attribution.summary.specific) for r in res.model.portfolio.risk],
-            columns = ['date', 'total', 'factors', 'specific'])
 
-def get_portfolio_factor_risk(portfolio_name, start_date, end_date, factors, model_id=DEFAULT_MODEL_ID):
+def get_portfolio_risk_summary(
+    portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID
+):
     oper = OpOperation(schema.Query)
-    risk = oper.model(id = model_id).portfolio(id = get_portfolio_id(portfolio_name)).risk(from_ = start_date, to = end_date)
-    risk.__fields__('date', 'total')
-    risk.attribution.factors(id = factors).__fields__('id', 'name', 'category', 'value')
+    risk = (
+        oper.model(id=model_id)
+        .portfolio(id=get_portfolio_id(portfolio_name))
+        .risk(from_=start_date, to=end_date)
+    )
+    risk.__fields__("date", "total")
+    risk.attribution.summary().__fields__("factors", "specific")
     res = oper()
-    return pd.DataFrame(data = [(r.date, rf.id, rf.name, rf.category, rf.value) for r in res.model.portfolio.risk for rf in r.attribution.factors],
-            columns = ['date', 'id', 'name', 'category', 'value'])    
+    return pd.DataFrame(
+        data=[
+            (
+                r.date,
+                r.total,
+                r.attribution.summary.factors,
+                r.attribution.summary.specific,
+            )
+            for r in res.model.portfolio.risk
+        ],
+        columns=["date", "total", "factors", "specific"],
+    )
 
-def get_total_risk(id, id_type, start_date, end_date, model_id = DEFAULT_MODEL_ID):
+
+def get_portfolio_factor_risk(
+    portfolio_name, start_date, end_date, factors, model_id=DEFAULT_MODEL_ID
+):
     oper = OpOperation(schema.Query)
-    oper.model(id = model_id).security(**{id_type : id}). \
-        risk(from_ = start_date, to = end_date).__fields__('date', 'total')
+    risk = (
+        oper.model(id=model_id)
+        .portfolio(id=get_portfolio_id(portfolio_name))
+        .risk(from_=start_date, to=end_date)
+    )
+    risk.__fields__("date", "total")
+    risk.attribution.factors(id=factors).__fields__("id", "name", "category", "value")
     res = oper()
-    return pd.DataFrame(data = [(r.date, r.total) for r in res.model.security.risk], columns = ['date', 'total'])
+    return pd.DataFrame(
+        data=[
+            (r.date, rf.id, rf.name, rf.category, rf.value)
+            for r in res.model.portfolio.risk
+            for rf in r.attribution.factors
+        ],
+        columns=["date", "id", "name", "category", "value"],
+    )
 
-def create_watchlist(name): 
+
+def get_total_risk(id, id_type, start_date, end_date, model_id=DEFAULT_MODEL_ID):
+    oper = OpOperation(schema.Query)
+    oper.model(id=model_id).security(**{id_type: id}).risk(
+        from_=start_date, to=end_date
+    ).__fields__("date", "total")
+    res = oper()
+    return pd.DataFrame(
+        data=[(r.date, r.total) for r in res.model.security.risk],
+        columns=["date", "total"],
+    )
+
+
+def create_watchlist(name):
     oper = OpOperation(schema.Mutation)
-    oper.create_watchlist(name = name)
+    oper.create_watchlist(name=name)
     res = oper()
     return res
 
-def get_watchlist_id(name): 
+
+def get_watchlist_id(name):
     oper = OpOperation(schema.Query)
-    oper.watchlists().__fields__('name', 'id')
+    oper.watchlists().__fields__("name", "id")
     res = oper()
     return [w.id for w in res.watchlists if w.name == name][0]
 
-def add_watchlist_securities(name, id_type, ids): 
+
+def add_watchlist_securities(name, id_type, ids):
     oper = OpOperation(schema.Mutation)
     equities = [schema.PositionSetEquityIdInput(**{id_type: id}) for id in ids]
-    securities = schema.WatchlistSecuritiesInput(equities = equities)
-    oper.add_watchlist_securities(watchlist_id = get_watchlist_id(name), securities = securities)
+    securities = schema.WatchlistSecuritiesInput(equities=equities)
+    oper.add_watchlist_securities(
+        watchlist_id=get_watchlist_id(name), securities=securities
+    )
     oper()
- 
-def clear_watchlist_securities(name): 
+
+
+def clear_watchlist_securities(name):
     oper = OpOperation(schema.Mutation)
-    oper.clear_watchlist_securities(watchlist_id = get_watchlist_id(name))
+    oper.clear_watchlist_securities(watchlist_id=get_watchlist_id(name))
     return oper()
- 
