@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="omegapoint",
-    version="0.0.1",
+    version="0.0.2",
     scripts=[],
     author="Ross Fabricant",
     description="Omega Point API Python Library",
@@ -13,6 +13,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/RossFabricant/omegapoint",
     packages=['omegapoint'],
+    install_requires=['numpy','pandas','request','sgqlc'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
