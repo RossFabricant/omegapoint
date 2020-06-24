@@ -2,3 +2,4 @@ numpy
 pandas
 requests
 sgqlc>=9.1
+twine>=1.13.0
