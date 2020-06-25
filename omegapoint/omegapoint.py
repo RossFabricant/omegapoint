@@ -310,6 +310,22 @@ def get_stock_factor_returns(
     ).reset_index()
 
 
+"""Get daily returns for a list of factor ids."""
+def get_factor_returns(start_date, end_date, factor_ids, model_id = DEFAULT_MODEL_ID):
+    oper = OpOperation(schema.Query)
+    factors = oper.model(id = model_id).factors(id = factor_ids)
+    factors.__fields__('id', 'name')
+    factors.performance(from_ = start_date, to = end_date).__fields__(
+        'date', 'percent_price_change1_day','percent_price_change_cumulative', 'normalized_return')
+    res = oper()
+    df_factor = pd.DataFrame(data = [(f.id, p.date, p.percent_price_change1_day) 
+                                     for f in res.model.factors 
+                                     for p in f.performance], 
+                             columns = ['id', 'date', 'ret_1d'])
+    return df_factor
+    
+
+
 """Omega Point provides cumulative returns. To convert to daily returns requires different formulas for total return and other returns (factor, sector and specific.)
 This is explained here: https://support.ompnt.com/en/articles/3804566-simple-performance-attribution-explanation
 T1 = Cumulative total return, period 1
