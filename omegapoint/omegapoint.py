@@ -157,6 +157,19 @@ def upload_portfolio_positions(name, df, nav=None):
         oper.upload_position_set_date(portfolio_id=port_id, data=position_set)
         oper()
 
+'''df is a pd.DataFrame(sedol, economic_exposure)'''
+def df_to_position_set(df : pd.DataFrame):
+    dates = []
+    for dt in df.date.unique():
+        equities = [
+        schema.PositionSetEquityInput(
+            id=schema.PositionSetEquityIdInput(sedol=row.sedol),
+            economic_exposure=row.economic_exposure,
+        )
+        for _, row in df[df.date==dt].iterrows()
+    ]
+        dates +=[schema.PositionSetDateInput(equities=equities, date=dt)]
+    return schema.PositionSetInput(dates=dates)
 
 """
 port_name = 'Test Name'
@@ -324,6 +337,31 @@ def get_factor_returns(start_date, end_date, factor_ids, model_id = DEFAULT_MODE
                              columns = ['id', 'date', 'ret_1d'])
     return df_factor
     
+"""Get daily and cumulative performance attribution for a list of factors."""
+def get_factor_performance_attribution(portfolio_name, start_date, end_date, factor_ids, model_id = DEFAULT_MODEL_ID):
+    oper = OpOperation(schema.Query)
+    sim = oper.model(id=model_id).simulation(
+        position_set=schema.PositionSetInput(
+            id=get_portfolio_id(portfolio_name), type="PORTFOLIO"
+        ),
+        from_=start_date,
+        to=end_date,
+    )
+    performance = sim.performance
+    performance.date()
+    performance.percent_return_cumulative.attribution.factors(id=factor_ids) .__fields__(
+        "id", "value"
+    )
+    results = oper()
+    results
+    df = pd.DataFrame(data = [(p.date, f.id, f.value) 
+                              for p in results.model.simulation.performance
+                              for f in p.percent_return_cumulative.attribution.factors],
+                      columns = ['date', 'id', 'value'])
+    df.value = df.value + 1
+    df['daily_value'] = df.groupby('id')['value'].pct_change(1)
+    df.value = df.value - 1
+    return df 
 
 
 """Omega Point provides cumulative returns. To convert to daily returns requires different formulas for total return and other returns (factor, sector and specific.)
@@ -529,6 +567,47 @@ def load_optimized_portfolio(
         upload_portfolio_positions(portfolio_name, df_pos, nav=nav)
     return errors
 
+'''df is a DataFrame(date,sedol, economic_exposure)
+EG 
+df = pd.DataFrame(data = [[date(2014,1,3), '2005973', 1e6], [date(2014,1,3), '2588173', 2e6],
+                         [date(2014,1,6), '2005973', 2e6], [date(2014,1,6), '2588173', 4e6]],
+                         columns = ['date', 'sedol', 'economic_exposure'])
+objective=schema.OptimizationObjective(minimize_factor_risk = True)
+constraints = schema.OptimizationConstraints(
+    max_trade = schema.OptimizationMaxTradeConstraint(percent_adv=1.0))
+
+op.get_optimized_weights(df = df, nav = 1e6, objective = objective, constraints = constraints)
+
+
+'''
+def get_optimized_weights(
+    df, nav, objective, constraints, model_id=DEFAULT_MODEL_ID
+):
+    pos_data = []
+    #The OP API can only optimize 1 date per API call. 
+    for dt in sorted(df.date.unique()):
+        position_set = df_to_position_set(df[df.date == dt])
+        constants = schema.OptimizationConstantsInput(equity=nav)
+        oper = OpOperation(schema.Query)
+        optimization = oper.model(id=model_id).optimization(
+            position_set=position_set,
+            objective=[objective],
+            constants=constants,
+            constraints=constraints
+        )
+        opt_dates = optimization.positions().dates
+        opt_dates.date()
+        opt_dates.equities().id().sedol()
+        opt_dates.equities().__fields__("id", "economic_exposure")
+        results = oper()
+        pos_data += [
+            [pos_date.date, equity.id.sedol, equity.economic_exposure]
+            for pos_date in results.model.optimization.positions.dates
+            for equity in pos_date.equities
+        ]
+    columns = ["date", "sedol", "economic_exposure"]
+    df_pos = pd.DataFrame(data=pos_data, columns=columns)
+    return df_pos
 
 def get_descriptors(dates, id_type, ids, descriptors, model_id=DEFAULT_MODEL_ID):
     ret = []
