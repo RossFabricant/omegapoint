@@ -363,6 +363,28 @@ def get_factor_performance_attribution(portfolio_name, start_date, end_date, fac
     df.value = df.value - 1
     return df 
 
+"""Get the factor exposure for a DataFrame of (date, sedol, economicExposure)"""
+def get_factor_exposure(df, start_date, end_date, factor_ids, model_id = DEFAULT_MODEL_ID):
+    oper = OpOperation(schema.Query)
+    sim = oper.model(id=model_id).simulation(
+        position_set=df_to_position_set(df),
+        from_=start_date,
+        to=end_date,
+    )
+    exposure = sim.exposure
+    exposure.date()
+    exposure.factors(id=factor_ids) .__fields__(
+        "id", "net", "long", "short"
+    )
+    results = oper()
+    results
+    df = pd.DataFrame(data = [(e.date, f.id, f.net, f.long, f.short) 
+                                for e in results.model.simulation.exposure
+                                for f in e.factors],
+                      columns = ['date', 'id', 'net', 'long', 'short'])
+    return df
+
+
 
 """Omega Point provides cumulative returns. To convert to daily returns requires different formulas for total return and other returns (factor, sector and specific.)
 This is explained here: https://support.ompnt.com/en/articles/3804566-simple-performance-attribution-explanation
@@ -575,19 +597,19 @@ df = pd.DataFrame(data = [[date(2014,1,3), '2005973', 1e6], [date(2014,1,3), '25
 objective=schema.OptimizationObjective(minimize_factor_risk = True)
 constraints = schema.OptimizationConstraints(
     max_trade = schema.OptimizationMaxTradeConstraint(percent_adv=1.0))
+constants = schema.OptimizationConstantsInput(equity=nav)
 
-op.get_optimized_weights(df = df, nav = 1e6, objective = objective, constraints = constraints)
+op.get_optimized_weights(df = df, objective = objective, constraints = constraints, constants = constants)
 
 
 '''
 def get_optimized_weights(
-    df, nav, objective, constraints, model_id=DEFAULT_MODEL_ID
+    df, objective, constraints, constants = schema.OptimizationConstantsInput(), model_id=DEFAULT_MODEL_ID
 ):
     pos_data = []
     #The OP API can only optimize 1 date per API call. 
     for dt in sorted(df.date.unique()):
         position_set = df_to_position_set(df[df.date == dt])
-        constants = schema.OptimizationConstantsInput(equity=nav)
         oper = OpOperation(schema.Query)
         optimization = oper.model(id=model_id).optimization(
             position_set=position_set,
