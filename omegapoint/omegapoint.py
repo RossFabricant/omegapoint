@@ -281,6 +281,7 @@ def get_stock_returns(id_type, ids, start_date, end_date, model_id=DEFAULT_MODEL
                 ][0],
             )
             for p in res.model.security.performance
+            if len(p.percent_price_change_cumulative.attribution.factors) != 0
         ]
         columns = [
             id_type,
@@ -609,6 +610,7 @@ def get_optimized_weights(
     pos_data = []
     #The OP API can only optimize 1 date per API call. 
     for dt in sorted(df.date.unique()):
+        print(dt)
         position_set = df_to_position_set(df[df.date == dt])
         oper = OpOperation(schema.Query)
         optimization = oper.model(id=model_id).optimization(
@@ -710,6 +712,72 @@ def get_security_search(
                 data_columns = ["date"] + security_columns
             dfs.append(pd.DataFrame(data=data, columns=data_columns))
     return pd.concat(dfs)
+
+'''Use the security search API to get values for ETF members for a date range. op_id is in the form ticker.exchange code, EG SPY.ARCX or IWB.ARCX'''
+def etf_security_search(
+    start_date, end_date, op_id, security_columns, factors, model_id=DEFAULT_MODEL_ID
+):
+    if "sedol" not in security_columns:
+        security_columns.append("sedol")
+    dfs = []
+    dates = utils.weekdays(start_date, end_date)
+    for dt in dates:
+        print(dt)
+        count_left = -1
+        total_count_taken = 0
+        while count_left != 0:
+            oper = OpOperation(schema.Query)
+            filter = schema.SecuritySearchFilter()
+            universe = [schema.SecuritySearchFilterUniverse(
+                type = 'ETF',
+                in_=op_id
+            )]
+            filter.__setattr__("universe", universe)
+            security_search = oper.model(id=model_id).security_search(
+                on=dt, filter=[filter], take=200, skip=total_count_taken
+            )
+            security_search.count()
+            security_search.securities().__fields__(*security_columns)
+            if factors is not None and len(factors) > 0:
+                security_search.securities.factor_exposure(id=factors).__fields__(
+                    "id", "z_score"
+                )
+            results = oper()
+            if results.model.security_search.securities is None:
+                current_count_taken = 0
+            else:
+                current_count_taken = len(results.model.security_search.securities)
+            total_count_taken += current_count_taken
+            count_left = total_count_taken - results.model.security_search.count
+            if current_count_taken == 0:
+                count_left = 0
+                break
+            if factors is not None and len(factors) > 0:
+                data = [
+                    [dt]
+                    + [getattr(res, s) for s in security_columns]
+                    + [fe.z_score for fe in res.factor_exposure]
+                    for res in results.model.security_search.securities
+                ]
+                data_columns = (
+                    ["date"]
+                    + security_columns
+                    + [
+                        fe.id
+                        for fe in results.model.security_search.securities[
+                            0
+                        ].factor_exposure
+                    ]
+                )
+            else:
+                data = [
+                    [dt] + [getattr(res, s) for s in security_columns]
+                    for res in results.model.security_search.securities
+                ]
+                data_columns = ["date"] + security_columns
+            dfs.append(pd.DataFrame(data=data, columns=data_columns))
+    return pd.concat(dfs)
+
 
 
 def get_composition(portfolio_name, start_date, end_date, model_id=DEFAULT_MODEL_ID):
