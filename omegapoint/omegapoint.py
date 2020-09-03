@@ -250,6 +250,16 @@ def get_portfolio_performance(
     return df_summary, df_factors
 
 
+def get_stock_factor_exposure(start_date, end_date, sedol, factor_ids, model_id = op.DEFAULT_MODEL_ID):
+'''For a single stock, get factor exposure for a date range.'''
+    oper = op.OpOperation(schema.Query)
+    exposure = oper.model(id=model_id).security(sedol=sedol).exposure(from_ = start_date, to = end_date)
+    exposure.date()
+    exposure.factors(id=factor_ids).__fields__('id', 'z_score')
+    res = oper().model.security.exposure
+    return pd.DataFrame(data=[(r.date, f.id, f.z_score) for r in res for f in r.factors], 
+                        columns = ['date', 'id', 'z_score'])
+
 """Given a list of sedol or model provider IDs and a date range, get total,factor,specific, and sector returns in a dataframe."""
 
 
