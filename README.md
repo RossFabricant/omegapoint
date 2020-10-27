@@ -2,7 +2,12 @@
 This library offers a convenient way to access the Omega Point API from Python. It has 3 components: 
 
     schema.py. This has Python classes that give full access to the Omega Point GQL API. 
-    It is automatically generated from sgqlc. 
+    It is automatically generated from sgqlc. EG: 
+    python -m sgqlc.introspection --exclude-deprecated --exclude-description -H "Authorization: SECRET" https://api.ompnt.com/graphql schema.json
+    python "C:\Program Files\Python38\Scripts\sgqlc-codegen" schema.json schema.py
+
+
+     
     
     omegapoint.py. This has convenience functions that let you perform common operations more
     fluently than you could by using schema.py directly.

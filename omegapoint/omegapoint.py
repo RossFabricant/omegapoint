@@ -1,5 +1,6 @@
-# TODO: It's easy to send a single input rather than a list, and you
-# get a confusing error. It would be nice to catch this and show a friendly error.
+#Note: For optimization parameters like maxConcentration, 1.0 means 100%.
+#For maxTrade.percentADV 1.0 means 1%. 
+#See here for examples: https://support.ompnt.com/en/articles/2068051-optimization-graphql-parameters 
 import os
 import pandas as pd
 import numpy as np
@@ -615,7 +616,7 @@ op.get_optimized_weights(df = df, objective = objective, constraints = constrain
 
 '''
 def get_optimized_weights(
-    df, objective, constraints, constants = schema.OptimizationConstantsInput(), model_id=DEFAULT_MODEL_ID
+    df, objective, constraints, constants = schema.OptimizationConstantsInput(), forecast = None, model_id=DEFAULT_MODEL_ID
 ):
     pos_data = []
     #The OP API can only optimize 1 date per API call. 
@@ -623,12 +624,21 @@ def get_optimized_weights(
         print(dt)
         position_set = df_to_position_set(df[df.date == dt])
         oper = OpOperation(schema.Query)
-        optimization = oper.model(id=model_id).optimization(
-            position_set=position_set,
-            objective=[objective],
-            constants=constants,
-            constraints=constraints
-        )
+        if forecast is None: 
+            optimization = oper.model(id=model_id).optimization(
+                position_set=position_set,
+                objective=[objective],
+                constants=constants,
+                constraints=constraints
+            )
+        else: 
+            optimization = oper.model(id=model_id).optimization(
+                position_set=position_set,
+                objective=[objective],
+                constants=constants,
+                constraints=constraints,
+                forecast = forecast
+            )            
         opt_dates = optimization.positions().dates
         opt_dates.date()
         opt_dates.equities().id().sedol()
@@ -999,3 +1009,35 @@ def clear_watchlist_securities(name):
     oper = OpOperation(schema.Mutation)
     oper.clear_watchlist_securities(watchlist_id=get_watchlist_id(name))
     return oper()
+
+#CRUD for Forecasts
+def create_forecast(name):
+    oper = OpOperation(schema.Mutation)
+    oper.create_forecast(forecast = schema.ForecastCreate(name = name)).id()
+    return oper().create_forecast.id
+
+def get_forecast_id(forecast_name):
+    oper = OpOperation(schema.Query)
+    oper.forecasts().__fields__('id', 'name')
+    ret = [f.id for f in oper().forecasts if f.name == forecast_name]
+    if len(ret) == 0:
+        raise RuntimeError(f"There are no forecasts with the name %s" % forecast_name)
+    if len(ret) > 1:
+        raise RuntimeError(f"There are multiple forecasts with the name %s" % forecast_name)
+    return ret[0]
+
+def delete_forecast(name):
+    oper = OpOperation(schema.Mutation)
+    oper.delete_forecast(id = get_forecast_id(name))
+    return oper()
+
+def upload_forecast_securities(forecast_name, df_forecast):
+    '''expects dataframe of (sedol, date, expected_return, horizon)'''
+    oper = OpOperation(schema.Mutation)
+    forecast_values = [schema.ForecastSecurityInput(
+        id = schema.UniversalIdInput(sedol= row.sedol),
+        as_of = row.date, 
+        expected_return = schema.ForecastExpectedReturnInput(return_ = row.expected_return, horizon = row.horizon))
+                  for _, row in df_forecast.iterrows()
+                  ]
+    return oper.upload_forecast_securities(id = get_forecast_id(forecast_name), values = forecast_values)
