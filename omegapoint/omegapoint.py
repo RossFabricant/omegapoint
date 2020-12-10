@@ -1040,4 +1040,5 @@ def upload_forecast_securities(forecast_name, df_forecast):
         expected_return = schema.ForecastExpectedReturnInput(return_ = row.expected_return, horizon = row.horizon))
                   for _, row in df_forecast.iterrows()
                   ]
-    return oper.upload_forecast_securities(id = get_forecast_id(forecast_name), values = forecast_values)
+    oper.upload_forecast_securities(id = get_forecast_id(forecast_name), values = forecast_values)
+    return oper()
