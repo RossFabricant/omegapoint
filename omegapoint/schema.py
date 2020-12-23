@@ -14,16 +14,21 @@ class Aggregation(sgqlc.types.Enum):
     __choices__ = ('LAST',)
 
 
+class BetaType(sgqlc.types.Enum):
+    __schema__ = schema
+    __choices__ = ('PREDICTED', 'HISTORICAL')
+
+
 Boolean = sgqlc.types.Boolean
 
 class CompositionConstraintType(sgqlc.types.Enum):
     __schema__ = schema
-    __choices__ = ('SECTOR', 'INDUSTRY_GROUP', 'INDUSTRY', 'CURRENCY', 'COUNTRY')
+    __choices__ = ('CLASSIFICATION', 'CURRENCY', 'COUNTRY')
 
 
 class ContributorGroupType(sgqlc.types.Enum):
     __schema__ = schema
-    __choices__ = ('SECTOR', 'INDUSTRY_GROUP', 'INDUSTRY', 'CURRENCY', 'COUNTRY', 'LONG_SHORT')
+    __choices__ = ('CLASSIFICATION', 'CURRENCY', 'COUNTRY', 'LONG_SHORT')
 
 
 class Cusip(sgqlc.types.Scalar):
@@ -141,6 +146,12 @@ class Universe(sgqlc.types.Enum):
 ########################################################################
 # Input Objects
 ########################################################################
+class BetaConstraintInput(sgqlc.types.Input):
+    __schema__ = schema
+    historical = sgqlc.types.Field('MinMaxInput', graphql_name='historical')
+    predicted = sgqlc.types.Field('MinMaxInput', graphql_name='predicted')
+
+
 class ContentSetDateInput(sgqlc.types.Input):
     __schema__ = schema
     date = sgqlc.types.Field(sgqlc.types.non_null(Date), graphql_name='date')
@@ -267,6 +278,12 @@ class MinMaxConstraintInput(sgqlc.types.Input):
     max = sgqlc.types.Field(sgqlc.types.non_null(Float), graphql_name='max')
 
 
+class MinMaxInput(sgqlc.types.Input):
+    __schema__ = schema
+    min = sgqlc.types.Field(Float, graphql_name='min')
+    max = sgqlc.types.Field(Float, graphql_name='max')
+
+
 class NewExperiment(sgqlc.types.Input):
     __schema__ = schema
     name = sgqlc.types.Field(sgqlc.types.non_null(String), graphql_name='name')
@@ -301,6 +318,8 @@ class OptimizationCompositionConstraint(sgqlc.types.Input):
     __schema__ = schema
     id = sgqlc.types.Field(sgqlc.types.non_null(String), graphql_name='id')
     type = sgqlc.types.Field(sgqlc.types.non_null(CompositionConstraintType), graphql_name='type')
+    classification_id = sgqlc.types.Field(String, graphql_name='classificationId')
+    classification_tier = sgqlc.types.Field(String, graphql_name='classificationTier')
     max_economic_exposure = sgqlc.types.Field(sgqlc.types.non_null(Float), graphql_name='maxEconomicExposure')
     min_economic_exposure = sgqlc.types.Field(sgqlc.types.non_null(Float), graphql_name='minEconomicExposure')
 
@@ -339,6 +358,7 @@ class OptimizationConstraints(sgqlc.types.Input):
     fix_position_set_securities = sgqlc.types.Field(Boolean, graphql_name='fixPositionSetSecurities')
     trade_swaps = sgqlc.types.Field(Boolean, graphql_name='tradeSwaps')
     max_market_impact_cost = sgqlc.types.Field(Float, graphql_name='maxMarketImpactCost')
+    beta = sgqlc.types.Field(BetaConstraintInput, graphql_name='beta')
 
 
 class OptimizationMaxTradeConstraint(sgqlc.types.Input):
@@ -370,6 +390,7 @@ class OptimizationOptionsInput(sgqlc.types.Input):
     __schema__ = schema
     objectives = sgqlc.types.Field(OptimizationObjectiveOptionsInput, graphql_name='objectives')
     equity = sgqlc.types.Field(Float, graphql_name='equity')
+    max_time = sgqlc.types.Field(Float, graphql_name='maxTime')
 
 
 class OptimizationSecuritiesInput(sgqlc.types.Input):
@@ -548,14 +569,37 @@ class SecuritySearchFilter(sgqlc.types.Input):
     factor_exposure = sgqlc.types.Field(sgqlc.types.list_of('SecuritySearchFilterFactorExposure'), graphql_name='factorExposure')
     country = sgqlc.types.Field('SecuritySearchFilterString', graphql_name='country')
     sector = sgqlc.types.Field('SecuritySearchFilterString', graphql_name='sector')
+    classification = sgqlc.types.Field(sgqlc.types.list_of('SecuritySearchFilterClassification'), graphql_name='classification')
     currency = sgqlc.types.Field('SecuritySearchFilterString', graphql_name='currency')
     asset_class = sgqlc.types.Field('SecuritySearchFilterString', graphql_name='assetClass')
     asset_subclass = sgqlc.types.Field('SecuritySearchFilterString', graphql_name='assetSubclass')
     average_daily_volume = sgqlc.types.Field('SecuritySearchFilterFloat', graphql_name='averageDailyVolume')
     market_capitalization = sgqlc.types.Field('SecuritySearchFilterFloat', graphql_name='marketCapitalization')
+    beta = sgqlc.types.Field('SecuritySearchFilterBeta', graphql_name='beta')
     universe = sgqlc.types.Field(sgqlc.types.list_of('SecuritySearchFilterUniverse'), graphql_name='universe')
     securities = sgqlc.types.Field('SecuritySearchFilterSecurities', graphql_name='securities')
     risk = sgqlc.types.Field(sgqlc.types.list_of('SecuritySearchFilterRisk'), graphql_name='risk')
+
+
+class SecuritySearchFilterBeta(sgqlc.types.Input):
+    __schema__ = schema
+    predicted = sgqlc.types.Field('SecuritySearchFilterFloat', graphql_name='predicted')
+    historical = sgqlc.types.Field('SecuritySearchFilterFloat', graphql_name='historical')
+
+
+class SecuritySearchFilterClassification(sgqlc.types.Input):
+    __schema__ = schema
+    id = sgqlc.types.Field(sgqlc.types.non_null(String), graphql_name='id')
+    in_ = sgqlc.types.Field(sgqlc.types.list_of('SecuritySearchFilterClassificationTier'), graphql_name='in')
+    not_in = sgqlc.types.Field(sgqlc.types.list_of('SecuritySearchFilterClassificationTier'), graphql_name='notIn')
+    eq = sgqlc.types.Field('SecuritySearchFilterClassificationTier', graphql_name='eq')
+    neq = sgqlc.types.Field('SecuritySearchFilterClassificationTier', graphql_name='neq')
+
+
+class SecuritySearchFilterClassificationTier(sgqlc.types.Input):
+    __schema__ = schema
+    tier = sgqlc.types.Field(String, graphql_name='tier')
+    value = sgqlc.types.Field(sgqlc.types.non_null(String), graphql_name='value')
 
 
 class SecuritySearchFilterFactorExposure(sgqlc.types.Input):
@@ -623,6 +667,7 @@ class SecuritySearchSort(sgqlc.types.Input):
     content_set_id = sgqlc.types.Field(String, graphql_name='contentSetId')
     factor_exposure_id = sgqlc.types.Field(String, graphql_name='factorExposureId')
     risk = sgqlc.types.Field(RiskType, graphql_name='risk')
+    beta = sgqlc.types.Field(BetaType, graphql_name='beta')
     descriptor = sgqlc.types.Field(Descriptor, graphql_name='descriptor')
     direction = sgqlc.types.Field(sgqlc.types.non_null(SortDirection), graphql_name='direction')
 
@@ -637,6 +682,7 @@ class SegmentFilter(sgqlc.types.Input):
     __schema__ = schema
     long_short = sgqlc.types.Field(SegmentBookFilter, graphql_name='longShort')
     sector = sgqlc.types.Field(SecuritySearchFilterString, graphql_name='sector')
+    classification = sgqlc.types.Field(sgqlc.types.list_of(SecuritySearchFilterClassification), graphql_name='classification')
     country = sgqlc.types.Field(SecuritySearchFilterString, graphql_name='country')
     currency = sgqlc.types.Field(SecuritySearchFilterString, graphql_name='currency')
     asset_class = sgqlc.types.Field(SecuritySearchFilterString, graphql_name='assetClass')
@@ -707,6 +753,52 @@ class BenchmarkMetadata(sgqlc.types.Type):
     current_date = sgqlc.types.Field(Date, graphql_name='currentDate')
 
 
+class Beta(sgqlc.types.Type):
+    __schema__ = schema
+    date = sgqlc.types.Field(Date, graphql_name='date')
+    rolled_over_from = sgqlc.types.Field(Date, graphql_name='rolledOverFrom')
+    predicted = sgqlc.types.Field(Float, graphql_name='predicted')
+    historical = sgqlc.types.Field(Float, graphql_name='historical')
+
+
+class BetaContributor(sgqlc.types.Type):
+    __schema__ = schema
+    asset_class = sgqlc.types.Field(String, graphql_name='assetClass')
+    asset_subclass = sgqlc.types.Field(String, graphql_name='assetSubclass')
+    id = sgqlc.types.Field(String, graphql_name='id')
+    country = sgqlc.types.Field(String, graphql_name='country')
+    currency = sgqlc.types.Field(String, graphql_name='currency')
+    classification = sgqlc.types.Field('SecurityClassification', graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
+))
+    )
+    description = sgqlc.types.Field(String, graphql_name='description')
+    percent_equity = sgqlc.types.Field(Float, graphql_name='percentEquity')
+    sedol = sgqlc.types.Field(Sedol, graphql_name='sedol')
+    isin = sgqlc.types.Field(Isin, graphql_name='isin')
+    cusip = sgqlc.types.Field(Cusip, graphql_name='cusip')
+    predicted = sgqlc.types.Field(Float, graphql_name='predicted')
+    historical = sgqlc.types.Field(Float, graphql_name='historical')
+
+
+class BetaContributorDate(sgqlc.types.Type):
+    __schema__ = schema
+    date = sgqlc.types.Field(Date, graphql_name='date')
+    rolled_over_from = sgqlc.types.Field(Date, graphql_name='rolledOverFrom')
+    contributors = sgqlc.types.Field(sgqlc.types.list_of(BetaContributor), graphql_name='contributors')
+
+
+class BetaContributorGroup(sgqlc.types.Type):
+    __schema__ = schema
+    name = sgqlc.types.Field(String, graphql_name='name')
+    id = sgqlc.types.Field(String, graphql_name='id')
+    total_percent_equity = sgqlc.types.Field(Float, graphql_name='totalPercentEquity')
+    contributors = sgqlc.types.Field(sgqlc.types.list_of(BetaContributor), graphql_name='contributors')
+    predicted = sgqlc.types.Field(Float, graphql_name='predicted')
+    historical = sgqlc.types.Field(Float, graphql_name='historical')
+
+
 class Category(sgqlc.types.Type):
     __schema__ = schema
     id = sgqlc.types.Field(String, graphql_name='id')
@@ -720,6 +812,50 @@ class CategoryFactor(sgqlc.types.Type):
     name = sgqlc.types.Field(String, graphql_name='name')
 
 
+class Classification(sgqlc.types.Type):
+    __schema__ = schema
+    id = sgqlc.types.Field(String, graphql_name='id')
+    name = sgqlc.types.Field(String, graphql_name='name')
+    versions = sgqlc.types.Field(sgqlc.types.list_of('ClassificationVersion'), graphql_name='versions')
+    version = sgqlc.types.Field('ClassificationVersion', graphql_name='version', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+))
+    )
+
+
+class ClassificationMetadata(sgqlc.types.Type):
+    __schema__ = schema
+    id = sgqlc.types.Field(String, graphql_name='id')
+    name = sgqlc.types.Field(String, graphql_name='name')
+    versions = sgqlc.types.Field(sgqlc.types.list_of('ClassificationVersion'), graphql_name='versions')
+
+
+class ClassificationTiers(sgqlc.types.Type):
+    __schema__ = schema
+    level = sgqlc.types.Field(Int, graphql_name='level')
+    id = sgqlc.types.Field(String, graphql_name='id')
+    name = sgqlc.types.Field(String, graphql_name='name')
+
+
+class ClassificationValue(sgqlc.types.Type):
+    __schema__ = schema
+    id = sgqlc.types.Field(String, graphql_name='id')
+    name = sgqlc.types.Field(String, graphql_name='name')
+    values = sgqlc.types.Field(sgqlc.types.list_of('ClassificationValue'), graphql_name='values')
+
+
+class ClassificationVersion(sgqlc.types.Type):
+    __schema__ = schema
+    id = sgqlc.types.Field(String, graphql_name='id')
+    name = sgqlc.types.Field(String, graphql_name='name')
+    as_of = sgqlc.types.Field(Date, graphql_name='asOf')
+    tiers = sgqlc.types.Field(sgqlc.types.list_of(ClassificationTiers), graphql_name='tiers')
+    values = sgqlc.types.Field(sgqlc.types.list_of(ClassificationValue), graphql_name='values', args=sgqlc.types.ArgDict((
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
+))
+    )
+
+
 class Composition(sgqlc.types.Type):
     __schema__ = schema
     date = sgqlc.types.Field(Date, graphql_name='date')
@@ -731,6 +867,8 @@ class Composition(sgqlc.types.Type):
     concentration = sgqlc.types.Field('CompositionConcentration', graphql_name='concentration')
     composition_by = sgqlc.types.Field(sgqlc.types.list_of('CompositionGroup'), graphql_name='compositionBy', args=sgqlc.types.ArgDict((
         ('group_by', sgqlc.types.Arg(sgqlc.types.non_null(ContributorGroupType), graphql_name='groupBy', default=None)),
+        ('classification_id', sgqlc.types.Arg(String, graphql_name='classificationId', default=None)),
+        ('classification_tier', sgqlc.types.Arg(String, graphql_name='classificationTier', default=None)),
 ))
     )
     positions = sgqlc.types.Field(sgqlc.types.list_of('CompositionPositions'), graphql_name='positions')
@@ -756,8 +894,9 @@ class CompositionPositions(sgqlc.types.Type):
     id = sgqlc.types.Field(String, graphql_name='id')
     country = sgqlc.types.Field(String, graphql_name='country')
     currency = sgqlc.types.Field(String, graphql_name='currency')
-    industry_classification = sgqlc.types.Field('SecurityDescriptor', graphql_name='industryClassification', args=sgqlc.types.ArgDict((
-        ('type', sgqlc.types.Arg(sgqlc.types.non_null(IndustryClassificationType), graphql_name='type', default=None)),
+    classification = sgqlc.types.Field('SecurityClassification', graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
 ))
     )
     description = sgqlc.types.Field(String, graphql_name='description')
@@ -916,7 +1055,11 @@ class ExposureContributor(sgqlc.types.Type):
     id = sgqlc.types.Field(String, graphql_name='id')
     country = sgqlc.types.Field(String, graphql_name='country')
     currency = sgqlc.types.Field(String, graphql_name='currency')
-    sector = sgqlc.types.Field(String, graphql_name='sector')
+    classification = sgqlc.types.Field('SecurityClassification', graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
+))
+    )
     description = sgqlc.types.Field(String, graphql_name='description')
     percent_equity = sgqlc.types.Field(Float, graphql_name='percentEquity')
     sedol = sgqlc.types.Field(Sedol, graphql_name='sedol')
@@ -1112,6 +1255,13 @@ class ForecastUpdateResult(sgqlc.types.Type):
     unmapped_securities = sgqlc.types.Field(sgqlc.types.list_of(ForecastSecurity), graphql_name='unmappedSecurities')
 
 
+class GroupedBetaContributorDate(sgqlc.types.Type):
+    __schema__ = schema
+    date = sgqlc.types.Field(Date, graphql_name='date')
+    rolled_over_from = sgqlc.types.Field(Date, graphql_name='rolledOverFrom')
+    grouped_contributors = sgqlc.types.Field(sgqlc.types.list_of(BetaContributorGroup), graphql_name='groupedContributors')
+
+
 class GroupedExposureContributorDate(sgqlc.types.Type):
     __schema__ = schema
     date = sgqlc.types.Field(Date, graphql_name='date')
@@ -1132,8 +1282,9 @@ class MarketImpactContributor(sgqlc.types.Type):
     id = sgqlc.types.Field(String, graphql_name='id')
     country = sgqlc.types.Field(String, graphql_name='country')
     currency = sgqlc.types.Field(String, graphql_name='currency')
-    industry_classification = sgqlc.types.Field('SecurityDescriptor', graphql_name='industryClassification', args=sgqlc.types.ArgDict((
-        ('type', sgqlc.types.Arg(sgqlc.types.non_null(IndustryClassificationType), graphql_name='type', default=None)),
+    classification = sgqlc.types.Field('SecurityClassification', graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
 ))
     )
     cost = sgqlc.types.Field(Float, graphql_name='cost')
@@ -1272,6 +1423,11 @@ class ModelOptimization(sgqlc.types.Type):
         ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
 ))
     )
+    beta = sgqlc.types.Field(sgqlc.types.list_of(Beta), graphql_name='beta')
+    beta_contributors = sgqlc.types.Field(sgqlc.types.list_of(BetaContributorDate), graphql_name='betaContributors', args=sgqlc.types.ArgDict((
+        ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
+))
+    )
     performance = sgqlc.types.Field(sgqlc.types.list_of('Performance'), graphql_name='performance', args=sgqlc.types.ArgDict((
         ('aggregation', sgqlc.types.Arg(Aggregation, graphql_name='aggregation', default=None)),
         ('to', sgqlc.types.Arg(Date, graphql_name='to', default=None)),
@@ -1297,6 +1453,11 @@ class ModelOptimization(sgqlc.types.Type):
 ))
     )
     market_impact = sgqlc.types.Field(MarketImpact, graphql_name='marketImpact', args=sgqlc.types.ArgDict((
+        ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
+        ('scale_format', sgqlc.types.Arg(ScaleFormat, graphql_name='scaleFormat', default=None)),
+))
+    )
+    turnover = sgqlc.types.Field('Turnover', graphql_name='turnover', args=sgqlc.types.ArgDict((
         ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
         ('scale_format', sgqlc.types.Arg(ScaleFormat, graphql_name='scaleFormat', default=None)),
 ))
@@ -1329,6 +1490,8 @@ class ModelPortfolio(sgqlc.types.Type):
         ('to', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='to', default=None)),
         ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
         ('group_by', sgqlc.types.Arg(sgqlc.types.non_null(ContributorGroupType), graphql_name='groupBy', default=None)),
+        ('classification_id', sgqlc.types.Arg(String, graphql_name='classificationId', default=None)),
+        ('classification_tier', sgqlc.types.Arg(String, graphql_name='classificationTier', default=None)),
 ))
     )
     risk = sgqlc.types.Field(sgqlc.types.list_of('Risk'), graphql_name='risk', args=sgqlc.types.ArgDict((
@@ -1346,6 +1509,8 @@ class ModelPortfolio(sgqlc.types.Type):
         ('on', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='on', default=None)),
         ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
         ('group_by', sgqlc.types.Arg(sgqlc.types.non_null(ContributorGroupType), graphql_name='groupBy', default=None)),
+        ('classification_id', sgqlc.types.Arg(String, graphql_name='classificationId', default=None)),
+        ('classification_tier', sgqlc.types.Arg(String, graphql_name='classificationTier', default=None)),
 ))
     )
     exposure = sgqlc.types.Field(sgqlc.types.list_of(Exposure), graphql_name='exposure', args=sgqlc.types.ArgDict((
@@ -1370,6 +1535,31 @@ class ModelPortfolio(sgqlc.types.Type):
         ('interval', sgqlc.types.Arg(PositionSetInterval, graphql_name='interval', default=None)),
         ('group_by', sgqlc.types.Arg(sgqlc.types.non_null(ContributorGroupType), graphql_name='groupBy', default=None)),
         ('content_set_id', sgqlc.types.Arg(String, graphql_name='contentSetId', default=None)),
+        ('classification_id', sgqlc.types.Arg(String, graphql_name='classificationId', default=None)),
+        ('classification_tier', sgqlc.types.Arg(String, graphql_name='classificationTier', default=None)),
+))
+    )
+    beta = sgqlc.types.Field(sgqlc.types.list_of(Beta), graphql_name='beta', args=sgqlc.types.ArgDict((
+        ('from_', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='from', default=None)),
+        ('to', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='to', default=None)),
+        ('interval', sgqlc.types.Arg(PositionSetInterval, graphql_name='interval', default=None)),
+))
+    )
+    beta_contributors = sgqlc.types.Field(sgqlc.types.list_of(BetaContributorDate), graphql_name='betaContributors', args=sgqlc.types.ArgDict((
+        ('from_', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='from', default=None)),
+        ('to', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='to', default=None)),
+        ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
+        ('interval', sgqlc.types.Arg(PositionSetInterval, graphql_name='interval', default=None)),
+))
+    )
+    grouped_beta_contributors = sgqlc.types.Field(sgqlc.types.list_of(GroupedBetaContributorDate), graphql_name='groupedBetaContributors', args=sgqlc.types.ArgDict((
+        ('from_', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='from', default=None)),
+        ('to', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='to', default=None)),
+        ('interval', sgqlc.types.Arg(PositionSetInterval, graphql_name='interval', default=None)),
+        ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
+        ('group_by', sgqlc.types.Arg(sgqlc.types.non_null(ContributorGroupType), graphql_name='groupBy', default=None)),
+        ('classification_id', sgqlc.types.Arg(String, graphql_name='classificationId', default=None)),
+        ('classification_tier', sgqlc.types.Arg(String, graphql_name='classificationTier', default=None)),
 ))
     )
     forecast = sgqlc.types.Field(ForecastTypes, graphql_name='forecast', args=sgqlc.types.ArgDict((
@@ -1419,6 +1609,8 @@ class ModelSimulation(sgqlc.types.Type):
     grouped_performance_contributors = sgqlc.types.Field(sgqlc.types.list_of('PerformanceContributorGroup'), graphql_name='groupedPerformanceContributors', args=sgqlc.types.ArgDict((
         ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
         ('group_by', sgqlc.types.Arg(sgqlc.types.non_null(ContributorGroupType), graphql_name='groupBy', default=None)),
+        ('classification_id', sgqlc.types.Arg(String, graphql_name='classificationId', default=None)),
+        ('classification_tier', sgqlc.types.Arg(String, graphql_name='classificationTier', default=None)),
 ))
     )
     risk = sgqlc.types.Field(sgqlc.types.list_of('Risk'), graphql_name='risk')
@@ -1431,6 +1623,8 @@ class ModelSimulation(sgqlc.types.Type):
         ('on', sgqlc.types.Arg(Date, graphql_name='on', default=None)),
         ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
         ('group_by', sgqlc.types.Arg(sgqlc.types.non_null(ContributorGroupType), graphql_name='groupBy', default=None)),
+        ('classification_id', sgqlc.types.Arg(String, graphql_name='classificationId', default=None)),
+        ('classification_tier', sgqlc.types.Arg(String, graphql_name='classificationTier', default=None)),
 ))
     )
     exposure = sgqlc.types.Field(sgqlc.types.list_of(Exposure), graphql_name='exposure', args=sgqlc.types.ArgDict((
@@ -1446,6 +1640,20 @@ class ModelSimulation(sgqlc.types.Type):
         ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
         ('group_by', sgqlc.types.Arg(sgqlc.types.non_null(ContributorGroupType), graphql_name='groupBy', default=None)),
         ('content_set_id', sgqlc.types.Arg(String, graphql_name='contentSetId', default=None)),
+        ('classification_id', sgqlc.types.Arg(String, graphql_name='classificationId', default=None)),
+        ('classification_tier', sgqlc.types.Arg(String, graphql_name='classificationTier', default=None)),
+))
+    )
+    beta = sgqlc.types.Field(sgqlc.types.list_of(Beta), graphql_name='beta')
+    beta_contributors = sgqlc.types.Field(sgqlc.types.list_of(BetaContributorDate), graphql_name='betaContributors', args=sgqlc.types.ArgDict((
+        ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
+))
+    )
+    grouped_beta_contributors = sgqlc.types.Field(sgqlc.types.list_of(GroupedBetaContributorDate), graphql_name='groupedBetaContributors', args=sgqlc.types.ArgDict((
+        ('equity_id_format', sgqlc.types.Arg(EquityIdFormat, graphql_name='equityIdFormat', default=None)),
+        ('group_by', sgqlc.types.Arg(sgqlc.types.non_null(ContributorGroupType), graphql_name='groupBy', default=None)),
+        ('classification_id', sgqlc.types.Arg(String, graphql_name='classificationId', default=None)),
+        ('classification_tier', sgqlc.types.Arg(String, graphql_name='classificationTier', default=None)),
 ))
     )
     forecast = sgqlc.types.Field(ForecastTypes, graphql_name='forecast', args=sgqlc.types.ArgDict((
@@ -1715,7 +1923,11 @@ class PerformanceContributor(sgqlc.types.Type):
     id = sgqlc.types.Field(String, graphql_name='id')
     country = sgqlc.types.Field(String, graphql_name='country')
     currency = sgqlc.types.Field(String, graphql_name='currency')
-    sector = sgqlc.types.Field(String, graphql_name='sector')
+    classification = sgqlc.types.Field('SecurityClassification', graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
+))
+    )
     description = sgqlc.types.Field(String, graphql_name='description')
     sedol = sgqlc.types.Field(Sedol, graphql_name='sedol')
     isin = sgqlc.types.Field(Isin, graphql_name='isin')
@@ -1753,6 +1965,7 @@ class PerformanceContributorGroup(sgqlc.types.Type):
     total = sgqlc.types.Field(Float, graphql_name='total')
     contributors = sgqlc.types.Field(sgqlc.types.list_of(PerformanceContributor), graphql_name='contributors')
     attribution = sgqlc.types.Field(PerformanceContributorAttribution, graphql_name='attribution')
+    average_percent_equity = sgqlc.types.Field(Float, graphql_name='averagePercentEquity')
 
 
 class PerformanceItem(sgqlc.types.Type):
@@ -1871,7 +2084,11 @@ class PositionSetEquity(sgqlc.types.Type):
     economic_exposure = sgqlc.types.Field(Float, graphql_name='economicExposure')
     country = sgqlc.types.Field(String, graphql_name='country')
     currency = sgqlc.types.Field(String, graphql_name='currency')
-    sector = sgqlc.types.Field(String, graphql_name='sector')
+    classification = sgqlc.types.Field('SecurityClassification', graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
+))
+    )
     trade_as_percent_adv = sgqlc.types.Field(Float, graphql_name='tradeAsPercentADV')
 
 
@@ -1904,6 +2121,11 @@ class PositionSetOtherAsset(sgqlc.types.Type):
 
 class Query(sgqlc.types.Type):
     __schema__ = schema
+    classifications = sgqlc.types.Field(sgqlc.types.list_of(ClassificationMetadata), graphql_name='classifications')
+    classification = sgqlc.types.Field(Classification, graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+))
+    )
     content_sets = sgqlc.types.Field(sgqlc.types.list_of(ContentSetMetadata), graphql_name='contentSets')
     content_set = sgqlc.types.Field(ContentSet, graphql_name='contentSet', args=sgqlc.types.ArgDict((
         ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
@@ -2013,7 +2235,11 @@ class RiskContributor(sgqlc.types.Type):
     id = sgqlc.types.Field(String, graphql_name='id')
     country = sgqlc.types.Field(String, graphql_name='country')
     currency = sgqlc.types.Field(String, graphql_name='currency')
-    sector = sgqlc.types.Field(String, graphql_name='sector')
+    classification = sgqlc.types.Field('SecurityClassification', graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
+))
+    )
     description = sgqlc.types.Field(String, graphql_name='description')
     sedol = sgqlc.types.Field(Sedol, graphql_name='sedol')
     isin = sgqlc.types.Field(Isin, graphql_name='isin')
@@ -2064,6 +2290,12 @@ class Security(sgqlc.types.Type):
         ('on', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='on', default=None)),
 ))
     )
+    classification = sgqlc.types.Field('SecurityClassification', graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+        ('on', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='on', default=None)),
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
+))
+    )
     availability = sgqlc.types.Field('SecurityAvailability', graphql_name='availability')
     performance = sgqlc.types.Field(sgqlc.types.list_of('SecurityPerformance'), graphql_name='performance', args=sgqlc.types.ArgDict((
         ('from_', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='from', default=None)),
@@ -2085,12 +2317,31 @@ class Security(sgqlc.types.Type):
         ('interval', sgqlc.types.Arg(Interval, graphql_name='interval', default=None)),
 ))
     )
+    beta = sgqlc.types.Field(sgqlc.types.list_of('SecurityBeta'), graphql_name='beta', args=sgqlc.types.ArgDict((
+        ('from_', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='from', default=None)),
+        ('to', sgqlc.types.Arg(sgqlc.types.non_null(Date), graphql_name='to', default=None)),
+        ('interval', sgqlc.types.Arg(Interval, graphql_name='interval', default=None)),
+))
+    )
 
 
 class SecurityAvailability(sgqlc.types.Type):
     __schema__ = schema
     from_ = sgqlc.types.Field(Date, graphql_name='from')
     to = sgqlc.types.Field(Date, graphql_name='to')
+
+
+class SecurityBeta(sgqlc.types.Type):
+    __schema__ = schema
+    date = sgqlc.types.Field(Date, graphql_name='date')
+    predicted = sgqlc.types.Field(Float, graphql_name='predicted')
+    historical = sgqlc.types.Field(Float, graphql_name='historical')
+
+
+class SecurityClassification(sgqlc.types.Type):
+    __schema__ = schema
+    id = sgqlc.types.Field(String, graphql_name='id')
+    name = sgqlc.types.Field(String, graphql_name='name')
 
 
 class SecurityDescriptor(sgqlc.types.Type):
@@ -2106,7 +2357,6 @@ class SecurityDescriptors(sgqlc.types.Type):
     mic = sgqlc.types.Field(String, graphql_name='mic')
     country = sgqlc.types.Field(String, graphql_name='country')
     currency = sgqlc.types.Field(String, graphql_name='currency')
-    sector = sgqlc.types.Field(String, graphql_name='sector')
     model_provider_id = sgqlc.types.Field(String, graphql_name='modelProviderId')
     asset_class = sgqlc.types.Field(String, graphql_name='assetClass')
     asset_subclass = sgqlc.types.Field(String, graphql_name='assetSubclass')
@@ -2200,6 +2450,13 @@ class SecurityResult(sgqlc.types.Type):
 ))
     )
     risk = sgqlc.types.Field('SecurityRisk', graphql_name='risk')
+    beta = sgqlc.types.Field('SecurityResultBeta', graphql_name='beta')
+
+
+class SecurityResultBeta(sgqlc.types.Type):
+    __schema__ = schema
+    predicted = sgqlc.types.Field(Float, graphql_name='predicted')
+    historical = sgqlc.types.Field(Float, graphql_name='historical')
 
 
 class SecurityRisk(sgqlc.types.Type):
@@ -2230,7 +2487,10 @@ class SecuritySearchResult(sgqlc.types.Type):
     count = sgqlc.types.Field(Int, graphql_name='count')
     countries = sgqlc.types.Field(sgqlc.types.list_of(SearchResultFacet), graphql_name='countries')
     currencies = sgqlc.types.Field(sgqlc.types.list_of(SearchResultFacet), graphql_name='currencies')
-    sectors = sgqlc.types.Field(sgqlc.types.list_of(SearchResultFacet), graphql_name='sectors')
+    classification = sgqlc.types.Field(sgqlc.types.list_of(SearchResultFacet), graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+))
+    )
 
 
 class SingleDeleteResult(sgqlc.types.Type):
@@ -2262,6 +2522,27 @@ class SwapMetadata(sgqlc.types.Type):
     termination_date = sgqlc.types.Field(Date, graphql_name='terminationDate')
     dates = sgqlc.types.Field(sgqlc.types.list_of(Date), graphql_name='dates')
     last_updated = sgqlc.types.Field(DateTime, graphql_name='lastUpdated')
+
+
+class Turnover(sgqlc.types.Type):
+    __schema__ = schema
+    total = sgqlc.types.Field(Float, graphql_name='total')
+    contributors = sgqlc.types.Field(sgqlc.types.list_of('TurnoverContributor'), graphql_name='contributors')
+
+
+class TurnoverContributor(sgqlc.types.Type):
+    __schema__ = schema
+    asset_class = sgqlc.types.Field(String, graphql_name='assetClass')
+    asset_subclass = sgqlc.types.Field(String, graphql_name='assetSubclass')
+    id = sgqlc.types.Field(String, graphql_name='id')
+    country = sgqlc.types.Field(String, graphql_name='country')
+    currency = sgqlc.types.Field(String, graphql_name='currency')
+    classification = sgqlc.types.Field(SecurityClassification, graphql_name='classification', args=sgqlc.types.ArgDict((
+        ('id', sgqlc.types.Arg(sgqlc.types.non_null(String), graphql_name='id', default=None)),
+        ('tier', sgqlc.types.Arg(String, graphql_name='tier', default=None)),
+))
+    )
+    value = sgqlc.types.Field(Float, graphql_name='value')
 
 
 class UniversalId(sgqlc.types.Type):
