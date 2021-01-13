@@ -361,6 +361,11 @@ class OptimizationConstraints(sgqlc.types.Input):
     beta = sgqlc.types.Field(BetaConstraintInput, graphql_name='beta')
 
 
+class OptimizationConstraintsOptionsInput(sgqlc.types.Input):
+    __schema__ = schema
+    ignore_adv = sgqlc.types.Field(Boolean, graphql_name='ignoreADV')
+
+
 class OptimizationMaxTradeConstraint(sgqlc.types.Input):
     __schema__ = schema
     percent_equity = sgqlc.types.Field(Float, graphql_name='percentEquity')
@@ -389,6 +394,7 @@ class OptimizationObjectiveOptionsInput(sgqlc.types.Input):
 class OptimizationOptionsInput(sgqlc.types.Input):
     __schema__ = schema
     objectives = sgqlc.types.Field(OptimizationObjectiveOptionsInput, graphql_name='objectives')
+    constraints = sgqlc.types.Field(OptimizationConstraintsOptionsInput, graphql_name='constraints')
     equity = sgqlc.types.Field(Float, graphql_name='equity')
     max_time = sgqlc.types.Field(Float, graphql_name='maxTime')
 
