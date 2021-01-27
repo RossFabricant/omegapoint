@@ -55,12 +55,12 @@ def set_verbose(is_verbose):
         logger.setLevel("INFO")
 
 
-def create_portfolio(name, default_model_id=DEFAULT_MODEL_ID):
+def create_portfolio(name, description = None,default_model_id=DEFAULT_MODEL_ID):
     same_name = [p for p in get_portfolios() if p.name == name]
     if len(same_name) > 0:
         raise RuntimeError(f"There's already a portfolio with name {name}.")
     oper = OpOperation(schema.Mutation)
-    port = schema.NewPortfolio(name=name, default_model_id=default_model_id)
+    port = schema.NewPortfolio(name=name, description = description, default_model_id=default_model_id)
     oper.create_portfolio(portfolio=port)
     oper.create_portfolio.__fields__("id")
     return oper().create_portfolio

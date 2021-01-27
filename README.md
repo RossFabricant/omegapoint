@@ -17,10 +17,13 @@ This library offers a convenient way to access the Omega Point API from Python. 
 
 There are 3 default values you can set with enviroment variables:
  
+#EG: AXWW4-SH
 DEFAULT_MODEL_ID = os.getenv('OMEGA_POINT_DEFAULT_MODEL_ID')
 
+#Get this from https://pi.ompnt.com/centerbook_partners/home/platform
 API_KEY = os.getenv('OMEGA_POINT_API_KEY')
 
+#https://api.ompnt.com/graphql
 URL = os.getenv('OMEGA_POINT_URL')
 
 
