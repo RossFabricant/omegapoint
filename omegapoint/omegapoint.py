@@ -98,6 +98,10 @@ def get_models():
     models.availability().__fields__(dates=None)
     return oper().models
 
+def get_model_availability(model_id=DEFAULT_MODEL_ID):
+    oper = OpOperation(schema.Query)
+    oper.model(id=model_id).availability().current_date()
+    return oper().model.availability.current_date
 
 def delete_portfolio_positions(name):
     oper = OpOperation(schema.Mutation)
