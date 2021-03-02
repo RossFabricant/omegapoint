@@ -47,6 +47,19 @@ class OpOperation(Operation):
             raise GqlError(str(data), data, self)
         return self + data
 
+    def call(self, get_extensions = False):
+        if not get_extensions: return __call__()
+        url = URL
+        headers = {"Authorization": API_KEY}
+        endpoint = HTTPEndpoint(url, headers)
+        data = endpoint(self)
+        if "errors" in data:
+            logger.error(f"Failed query:\n{self}")
+            raise GqlError(str(data), data, self)
+        extensions = []
+        if "extensions" in data:
+            extensions = data['extensions']
+        return (self + data), extensions
 
 def set_verbose(is_verbose):
     if is_verbose:
