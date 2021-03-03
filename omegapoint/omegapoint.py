@@ -556,13 +556,13 @@ load_optimized_portfolio(df,'rwf_test', 100e6, 21, objective)
 def load_optimized_portfolio(
     df, portfolio_name, nav, forecast_horizon, objective, model_id=DEFAULT_MODEL_ID
 ):
-    if portfolio_name not in [p.name for p in op.get_portfolios()]:
-        op.create_portfolio(portfolio_name)
+    if portfolio_name not in [p.name for p in get_portfolios()]:
+        create_portfolio(portfolio_name)
 
     errors = []
     for dt in df.date.unique():
         rows = list(row for index, row in df[df.date == dt].iterrows())
-        oper = op.OpOperation(schema.Query)
+        oper = OpOperation(schema.Query)
         long_len = len([r for r in rows if r.expected_return > 0])
         if long_len > 0:
             long_base = nav / long_len
@@ -606,7 +606,7 @@ def load_optimized_portfolio(
         results = None
         try:
             results = oper()
-        except op.GqlError as gql_err:
+        except GqlError as gql_err:
             errors.append((dt, gql_err))
         values = [
             [pos_date.date, equity.id.sedol, equity.economic_exposure]
