@@ -671,48 +671,43 @@ def get_optimized_weights(
     return df_pos
 
 def optimize_portfolio(
-    portfolio_name, start_date, end_date, objective, constraints, 
+    portfolio_name, dt, objective, constraints, 
     constants = schema.OptimizationConstantsInput(), forecast = None, 
     model_id=DEFAULT_MODEL_ID):
     '''Optimize an uploaded portfolio'''
     pos_data = []
-    dates = utils.weekdays(start_date, end_date)
-    #The OP API can only optimize 1 date per API call. 
-    for dt in sorted(dates):
-        print(dt)
-        position_set = schema.PositionSetInput(id=get_portfolio_id(portfolio_name), type="PORTFOLIO")
-        oper = OpOperation(schema.Query)
-        if forecast is None: 
-            optimization = oper.model(id=model_id).optimization(
-                position_set=position_set,
-                objective=[objective],
-                constants=constants,
-                constraints=constraints,
-                on = [dt]
-            )
-        else: 
-            optimization = oper.model(id=model_id).optimization(
-                position_set=position_set,
-                objective=[objective],
-                constants=constants,
-                constraints=constraints,
-                on = [dt],
-                forecast = forecast
-            )            
-        opt_dates = optimization.positions().dates
-        opt_dates.date()
-        opt_dates.equities().id().sedol()
-        opt_dates.equities().__fields__("id", "economic_exposure")
-        results = oper()
-        pos_data += [
-            [pos_date.date, equity.id.sedol, equity.economic_exposure]
-            for pos_date in results.model.optimization.positions.dates
-            for equity in pos_date.equities
-        ]
-    columns = ["date", "sedol", "economic_exposure"]
+    position_set = schema.PositionSetInput(id=get_portfolio_id(portfolio_name), type="PORTFOLIO")
+    oper = OpOperation(schema.Query)
+    if forecast is None: 
+        optimization = oper.model(id=model_id).optimization(
+            position_set=position_set,
+            objective=[objective],
+            constants=constants,
+            constraints=constraints,
+            on = [dt]
+        )
+    else: 
+        optimization = oper.model(id=model_id).optimization(
+            position_set=position_set,
+            objective=[objective],
+            constants=constants,
+            constraints=constraints,
+            on = [dt],
+            forecast = forecast
+        )            
+    opt_dates = optimization.positions().dates
+    opt_dates.date()
+    opt_dates.equities().id().model_provider_id()
+    opt_dates.equities().__fields__("id", "economic_exposure")
+    results = oper()
+    pos_data += [
+        [pos_date.date, equity.id.model_provider_id, equity.economic_exposure]
+        for pos_date in results.model.optimization.positions.dates
+        for equity in pos_date.equities
+    ]
+    columns = ["date", "model_provider_id", "economic_exposure"]
     df_pos = pd.DataFrame(data=pos_data, columns=columns)
     return df_pos
-
 
 def get_descriptors(dates, id_type, ids, descriptors, model_id=DEFAULT_MODEL_ID):
     ret = []
