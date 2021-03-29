@@ -218,7 +218,7 @@ def get_portfolio_performance(
     start_date,
     end_date,
     base=None,
-    interval=schema.PositionSetInterval.AUTO,
+    interval=schema.PositionSetInterval.POSITION_SET_DATES,
     model_id=DEFAULT_MODEL_ID,
 ):
     summary_fields = ["trading", "factors", "specific"]
