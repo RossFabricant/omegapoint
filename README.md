@@ -5,8 +5,7 @@ This library offers a convenient way to access the Omega Point API from Python. 
     It is automatically generated from sgqlc. EG: 
     python -m sgqlc.introspection --exclude-deprecated --exclude-description -H "Authorization: SECRET" https://api.ompnt.com/graphql schema.json
     python "C:\Program Files\Python38\Scripts\sgqlc-codegen" schema.json schema.py
-
-
+    (Anaconda may install your scripts in a directory like C:\Users\%username%\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\LocalCache\local-packages\Python39\Scripts\)
      
     
     omegapoint.py. This has convenience functions that let you perform common operations more
