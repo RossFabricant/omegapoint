@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="omegapoint",
-    version="0.0.2",
+    version="0.0.3",
     scripts=[],
     author="Ross Fabricant",
     description="Omega Point API Python Library",
