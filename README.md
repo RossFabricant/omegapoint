@@ -2,17 +2,32 @@
 This library offers a convenient way to access the Omega Point API from Python. It has 3 components: 
 
     schema.py. This has Python classes that give full access to the Omega Point GQL API. 
-    It is automatically generated from sgqlc. EG: 
-    python -m sgqlc.introspection --exclude-deprecated --exclude-description -H "Authorization: SECRET" https://api.ompnt.com/graphql schema.json
-    python "C:\Program Files\Python38\Scripts\sgqlc-codegen" schema.json schema.py
+    It is automatically generated from sgqlc. 
+    Following these steps will generate a new version of schema.py that matches that most recent Omega Point REST API. 
+
+    SGQLC docs are here: https://sgqlc.readthedocs.io/en/latest/index.html
+    You need to have SGQLC scripts installed to update schema.py. 
+
+
+    1) Run introspection query, save results.  
+    Replace the string SECRET with your Omega Point authoritization. This is available from https://pi.ompnt.com/centerbook_partners/home/platform. I don't think it matters which environment you use (I used Production.)
+
+    cd omegapoint\omegapoint
+    python -m sgqlc.introspection      --exclude-deprecated      --exclude-description      -H "Authorization: SECRET"      https://api.ompnt.com/graphql      schema.json
+
+    2) Convert introspection query to SGQLC types.
+
+    python "C:\Users\%username%\Anaconda3\Scripts\sgqlc-codegen.exe" schema.json schema.py
     (Anaconda may install your scripts in a directory like C:\Users\%username%\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\LocalCache\local-packages\Python39\Scripts\)
+
+    3) Overwrite omegapoint/schema.py with the new schema.py
      
     
     omegapoint.py. This has convenience functions that let you perform common operations more
     fluently than you could by using schema.py directly.
     It also defines the class GqlError, which lets you capture Omega Point error messages on failed operations. 
     
-    utils.py. This has convenince functions for working with dates and splitting up large API requests.  
+    utils.py. This has convenience functions for working with dates and splitting up large API requests.  
 
 There are 3 default values you can set with enviroment variables:
  
